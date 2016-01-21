@@ -100,7 +100,6 @@ $WS_INIT['depositbox'] = array(
                     .  '{white}but different senders.'
         ),
     ),
-    /*
     'check' => array(
         'function' => 'umc_depositbox_check',
         'help' => array(
@@ -108,9 +107,10 @@ $WS_INIT['depositbox'] = array(
             'short' => 'Get details on deposit box purchases.',
             'long' => 'Displays detailed output relating to depositbox pricing, currently owned box counts and maximum ownable box counts.'
         ),
+        'security' => array(
+            'users' => array( 'psiber', 'uncovery'),
+        ),
     ),
-     *
-     */
 );
 
 // settings array to hold maximum numbers of purchasable homes
