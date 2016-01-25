@@ -70,12 +70,12 @@ function umc_db_take_item($table, $id, $amount, $player) {
             $action = "UPDATE minecraft_iconomy.deposit ";
             $details = "SET "
                 . "sender_uuid='$new_sender_uuid',"
-                . "damage='0',"
-                . "amount='0',"
-                . "meta='0',"
+                . "damage=0,"
+                . "amount=0,"
+                . "meta='',"
                 . "item_name='',"
                 . "date=NOW "
-            $condition = "WHERE id='$id' ";
+            $condition = "WHERE id=$id ";
             $limit = 'LIMIT 1';
             
             $sql = $action . $details . $condition . $limit;
