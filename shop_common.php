@@ -73,8 +73,8 @@ function umc_db_take_item($table, $id, $amount, $player) {
                 . "damage='0',"
                 . "amount='0',"
                 . "meta='0',"
-                . "item_name=' ',"
-                . "date='$date' "
+                . "item_name='',"
+                . "date=NOW "
             $condition = "WHERE id='$id' ";
             $limit = 'LIMIT 1';
             
