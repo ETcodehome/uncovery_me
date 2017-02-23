@@ -175,12 +175,15 @@ function umc_userlevel_promote_onelevel($uuid) {
 function umc_userlevel_assign_level($uuid, $newlevel) {
     global $UMC_SETTING;
     XMPP_ERROR_trace(__FUNCTION__, func_get_args());
-
+    
     // check if level is valid
     if (!in_array($newlevel, $UMC_SETTING['ranks'])) {
         XMPP_ERROR_trigger("Tried to set invalid userlevel $newlevel for user $uuid!");
         return;
     }
+    
+    //always make sure first letter of $newlevel is uppercase value
+    $newlevel = ucfirst($newlevel);
 
     // upgrade on the server
     $check = umc_exec_command("pex user $uuid group set $newlevel");
