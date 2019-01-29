@@ -154,14 +154,14 @@ function umc_nbt_display_long_text($nbt_array) {
                     $text .= "dyed";
                 }
                 break;
-            case 'ench':
-            case 'storedenchantments':
+            case 'ench': //for enchanted items
+            case 'storedenchantments': //for enchanted books
                 $text .= "Enchantments: ";
-                // example enchantment {ench:[{lvl:5,id:16},{lvl:5,id:17},{lvl:5,id:18},{lvl:2,id:19},{lvl:2,id:20},{lvl:3,id:21}]}
+                // example enchantment {StoredEnchantments:[{lvl:2,id:"minecraft:fire_aspect"}]}
                 $enchs = array();
                 foreach ($data as $ench) {
                     // find the id in the enchantments data
-                    $ench_name = umc_enchant_text_find('id', $ench['id'], 'name');
+                    $ench_name = umc_enchant_text_find('key', $ench['id'], 'name');
                     $enchs[] = $ench_name . " Lvl {$ench['lvl']}";
                 }
                 $text .= implode(", ", $enchs) . '\n';
@@ -218,20 +218,27 @@ function umc_nbt_display_long_text($nbt_array) {
                 break;
             case 'fireworks':
                 // {Fireworks:{Flight:2,Explosions:[{Type:1,Flicker:0,Trail:1,Colors:[11743532,5320730,8073150],FadeColors:[3887386,4312372,6719955]}]}}
-                $text .= "Flight Duration: " . $data['Flight'] . '\n';
-                $explosions = array(0 => 'Small Ball', 1 => 'Large Ball', 2 => 'Star-Shaped', 3 => 'Creeper-Shaped',  3 => 'Sparkle',);
-                $e_data = $data['Explosions'][0];
-                $explosion_type = $e_data['Type'];
-                $text .= "Explosion " . $explosions[$explosion_type];
+                $elements = array();
+                $elements[] = "Flight Duration: " . $data['Flight'];
+                if (isset($data['Explosions'])) {
+                    $explosions = array(0 => 'Small Ball', 1 => 'Large Ball', 2 => 'Star-Shaped', 3 => 'Creeper-Shaped',  3 => 'Sparkle',);
+                    $e_data = $data['Explosions'][0];
+                    $explosion_type = $e_data['Type'];
+                    $elements[] = " Explosion " . $explosions[$explosion_type];
+                }
                 if (isset($e_data['Flicker']) && $e_data['Flicker'] == 1) {
-                    $text .= ', Flicker';
+                    $elements[] = 'Flicker';
                 }
                 if (isset($e_data['Trail']) && $e_data['Trail'] == 1) {
-                    $text .= ', Trail';
+                   $elements[] = 'Trail';
                 }
-                $text .= '\n';
-                $text .= "Colors: " . count($e_data['Colors']) . '\n';
-                $text .= "Fade Colors: " . count($e_data['FadeColors']) . '\n';
+                if (isset($e_data['Colors'])) {
+                    $elements[] = "Colors: " . count($e_data['Colors']);
+                }
+                if (isset($e_data['FadeColors'])) {
+                    $elements[] = "Fade Colors: " . count($e_data['FadeColors']);
+                }
+                $text .= implode(", ", $elements);
                 break;
             case 'pages': // for books
                 $text .= ucwords($feature) . ": " . count($data) . '\n';
@@ -249,8 +256,12 @@ function umc_nbt_display_long_text($nbt_array) {
             case 'potion':
                 $text .= umc_potion_text_find($data, 'long_text');
                 break;
+            case 'skullowner':
+                $skull_owner = $data['Name'];
+                $text .= "($skull_owner)\n";
+                break;
             default:
-                XMPP_ERROR_trigger("Unknown NBT Type '$feature'");
+                XMPP_ERROR_trigger("Unknown NBT Type '$feature' (umc_nbt_display_long_text)");
         }
     }
     return $text;
@@ -279,17 +290,17 @@ function umc_nbt_display_short_text($nbt_array) {
                     $text .= "dyed";
                 }
                 break;
-            case 'ench':
-            case 'storedenchantments':
-                $text .= "Ench: ";
+            case 'ench': //for enchanted items
+            case 'storedenchantments': //for enchanted books
+                $text .= "(";
                 // example enchantment {ench:[{lvl:5,id:16},{lvl:5,id:17},{lvl:5,id:18},{lvl:2,id:19},{lvl:2,id:20},{lvl:3,id:21}]}
                 $enchs = array();
                 foreach ($data as $ench) {
                     // find the id in the enchantments data
-                    $ench_name = umc_enchant_text_find('id', $ench['id'], 'short');
+                    $ench_name = umc_enchant_text_find('key', $ench['id'], 'name');
                     $enchs[] = $ench_name . " {$ench['lvl']}";
                 }
-                $text .= implode(", ", $enchs);
+                $text .= implode(", ", $enchs).  ")";
                 break;
             case 'display':
                 if (isset($data['Name'])) {
@@ -313,20 +324,27 @@ function umc_nbt_display_short_text($nbt_array) {
                 break;
             case 'fireworks':
                 // {Fireworks:{Flight:2,Explosions:[{Type:1,Flicker:0,Trail:1,Colors:[11743532,5320730,8073150],FadeColors:[3887386,4312372,6719955]}]}}
-                $text .= "Flight Duration: " . $data['Flight'] . '\n';
-                $explosions = array(0 => 'Small Ball', 1 => 'Large Ball', 2 => 'Star-Shaped', 3 => 'Creeper-Shaped',  3 => 'Sparkle',);
-                $e_data = $data['Explosions'][0];
-                $explosion_type = $e_data['Type'];
-                $text .= "Explosion " . $explosions[$explosion_type];
+                $elements = array();
+                $elements[] = "Duration: " . $data['Flight'];
+                if (isset($data['Explosions'])) {
+                    $explosions = array(0 => 'Small Ball', 1 => 'Large Ball', 2 => 'Star-Shaped', 3 => 'Creeper-Shaped',  3 => 'Sparkle',);
+                    $e_data = $data['Explosions'][0];
+                    $explosion_type = $e_data['Type'];
+                    $elements[] = " Explosion " . $explosions[$explosion_type];
+                }
                 if (isset($e_data['Flicker']) && $e_data['Flicker'] == 1) {
-                    $text .= ', Flicker';
+                    $elements[] = 'Flicker';
                 }
                 if (isset($e_data['Trail']) && $e_data['Trail'] == 1) {
-                    $text .= ', Trail';
+                   $elements[] = 'Trail';
                 }
-                $text .= '\n';
-                $text .= "Colors: " . count($e_data['Colors']) . '\n';
-                $text .= "Fade Colors: " . count($e_data['FadeColors']) . '\n';
+                if (isset($e_data['Colors'])) {
+                    $elements[] = "Colors: " . count($e_data['Colors']);
+                }
+                if (isset($e_data['FadeColors'])) {
+                    $elements[] = "Fade Colors: " . count($e_data['FadeColors']);
+                }
+                $text .= implode(", ", $elements);
                 break;
             case 'pages': // for books
                 $text .= count($data) . ' Pages';
@@ -338,8 +356,25 @@ function umc_nbt_display_short_text($nbt_array) {
             case 'potion': 
                 $text .= umc_potion_text_find($data, 'short_text');
                 break;
+            case 'skullowner': // TODO: Need to properly implement this.
+                
+                /**
+                 {SkullOwner:
+                    {Id:"f4c2cad7-0ace-4ce6-8678-69d0b653a98b",
+                 *  Properties:{textures:
+                 *      [
+                 *          {Signature:"xoHy554SnbjVV2H99fcmQMoFYT8ONVgOxPrTdH5KOi14epy+p2YzXwhxDCa7JVsQgZhUaSedphQnFEOup+hSj1riSZs8cGm2kM2dg+/PrDSUmV1mDQtMi+bqsJG9LTdMP6aCmlne2mWIXmADns31t1m2yQrUAKNayW3SZMSgQjOD9czes0Pfym7fPsC+nw/oP7T1Lwyxm5+3/W2VFjm3sfdntFSYxTChO8wkQ964o+VshldmW9AAbwd96y2v5T0i+iV+Rlq8/YhQcKryxVzBOOfkEKx3NsR6fOYu/8i5AGlbY33897WFUtR4TzHOX+VdzouGreKIRhavdcDMSS1HzFtFuG017GctuDUjSoYug6/kzS3mN47AEaH1o/AFnj1mIepMcMpPISDVZPgbKfebo8Y5rw6mLSg3DX3kSFTdF05IuJ1ba4jI0q3HByG0yC2D9SMKx8TMBzSZxw112yEQOUr4i1QjDVBT9ILiGQ073FBNAM4NG2Yqow5CFBJr1ldVO87jBZPqAWhUr3vpHkYyadJ6fGdBkaT6xZKgSPadNOg8oyuNFK9lcHK+fvtfmtFB4R7ZUtWo7b/V9Ty3c1aHSDIeNtpkftojCfrY3EKMkwILLORg4Bn9avVxMfrAeMVDE14GBqH+zZuq2hjJqD+GVwKMmbv1Q94ChgeNxsQ4k/I=",
+                 *           Value:"eyJ0aW1lc3RhbXAiOjE0OTk3MTI1ODkyMjQsInByb2ZpbGVJZCI6ImY0YzJjYWQ3MGFjZTRjZTY4Njc4NjlkMGI2NTNhOThiIiwicHJvZmlsZU5hbWUiOiJHdWFyZGlhbiIsInNpZ25hdHVyZVJlcXVpcmVkIjp0cnVlLCJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvNTU2YjM3NzgzODYxZTZhNDRkNTM3ZTMyZDg2NTUzNzMxYWU0MzM3OTExNWRiMzRjMjY2ZTUyZmEzY2FiIn19fQ=="
+                 *          }
+                 *      ]
+                 * },
+                 * Name:"Guardian"},display:{Name:"&rGuardian Head"}}"
+                 */
+                $skull_owner = $data['Name'];
+                $text .= "($skull_owner)\n";
+                break;
             default:
-                XMPP_ERROR_trigger("Unknown NBT Type '$feature'");
+                XMPP_ERROR_trigger("Unknown NBT Type '$feat' (umc_nbt_display_short_text)");
         }
     }
     return $text;

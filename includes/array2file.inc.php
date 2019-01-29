@@ -23,12 +23,18 @@
  * @param type $data
  * @param type $array_name
  * @param type $file
+ * @param string $comments this should not have a newline at the end.
  * @return string
  */
-function umc_array2file($data, $array_name, $file) {
-    XMPP_ERROR_trace(__FUNCTION__, func_get_args());
+function umc_array2file($data, $array_name, $file, $comments = false) {
     $array_name_upper = strtoupper($array_name);
+    
+    $fixed_comments = '';
+    if ($comments) {
+        $fixed_comments = "/**\n" . preg_replace('/^/m', ' * ', $comments) . "\n */\n\n";
+    }
     $out = '<?php' . "\n"
+        . $fixed_comments
         . '$' . $array_name_upper. " = array(\n"
         . umc_array2file_line($data, 0)
         . ");";
@@ -37,14 +43,14 @@ function umc_array2file($data, $array_name, $file) {
 }
 
 function umc_array2file_line($array, $layer, $val_change_func = false) {
-    XMPP_ERROR_trace(__FUNCTION__, func_get_args());
     $in_text = umc_array2file_indent($layer);
     $out = "";
     foreach ($array as $key => $value) {
         if ($val_change_func) {
             $value = $val_change_func($key, $value);
-        }        
-        $out .=  "$in_text'$key' => ";
+        }
+        $slash_key = addslashes($key);
+        $out .=  "$in_text'$slash_key' => ";
         if (is_array($value)) {
             $layer++;
             $out .= "array(\n"
@@ -54,11 +60,13 @@ function umc_array2file_line($array, $layer, $val_change_func = false) {
         } else if(is_numeric($value)) {
             $out .= "$value,\n";
         } else {
-            $out .= "'$value',\n";
+            $out .= "'" . addslashes($value) . "',\n";
         }
     }
     return $out;
 }
+
+
 
 function umc_array2file_indent($layer) {
     $text = '    ';

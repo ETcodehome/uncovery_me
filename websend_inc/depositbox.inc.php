@@ -376,11 +376,17 @@ function umc_do_withdraw() {
             $sender = substr($id, 1); // strip the @ from the name
             $sender_uuid = umc_user2uuid($sender);
             umc_echo("{green}[+]{gray} Withdrawing items sent by {gold}$sender{gray} from your deposit");
-            $sql = "SELECT `id`, `item_name`, `amount` FROM minecraft_iconomy.deposit WHERE sender_uuid='$sender_uuid' AND recipient_uuid='$uuid'";
+            $sql = "SELECT `id`, `item_name`, `amount`, `nbt`
+                FROM minecraft_iconomy.deposit 
+                WHERE sender_uuid='$sender_uuid'
+                AND recipient_uuid='$uuid'";
             umc_log('deposit', 'withdraw', "$player tried to withdraw $amount from $sender");
         } else if ($id == 'all') { // withdrawing the whole deposit
             umc_echo("{green}[+]{gray} Withdrawing everything from your deposit...");
-            $sql = "SELECT `id`, `item_name`, `amount` FROM minecraft_iconomy.deposit WHERE recipient_uuid='$uuid' AND sender_uuid <> 'reusable-0000-0000-0000-000000000000';";
+            $sql = "SELECT `id`, `item_name`, `nbt`, `amount`
+                FROM minecraft_iconomy.deposit 
+                WHERE recipient_uuid='$uuid'
+                AND sender_uuid <> 'reusable-0000-0000-0000-000000000000';";
             umc_log('deposit', 'withdraw', "$player tried to withdraw all");
         } else { // by item name
             $find_item = umc_goods_get_text($id);
@@ -391,11 +397,10 @@ function umc_do_withdraw() {
             if (!$find_item) {
                 umc_error("There is nobody or item with that name to withdraw. Please check the manual");
             }
-            $sql = "SELECT `id`, `item_name`, `amount` FROM minecraft_iconomy.deposit
+            $sql = "SELECT `id`, `item_name`, `amount`, `nbt` FROM minecraft_iconomy.deposit
                 WHERE recipient_uuid='$uuid'
-		    AND item_name='{$find_item['item_name']}'
-		    AND damage='0'";
-            umc_log('deposit', 'withdraw', "$player tried to {$find_item['item_name']}:0");
+		AND item_name='{$find_item['item_name']}'";
+            umc_log('deposit', 'withdraw', "$player tried to withdraw {$find_item['item_name']} {$find_item['nbt']}");
         }
 
         $D2 = umc_mysql_fetch_all($sql);
@@ -403,8 +408,9 @@ function umc_do_withdraw() {
             $all_items = array();
             foreach ($D2 as $row) {
                 $id = $row['id'];
+                $nbt = $row['nbt'];
                 $item_name = $row['item_name'];
-                if($amount == 'max') {
+                if ($amount == 'max') {
                     $this_amount = $row['amount'];
                 } else if ($row['amount'] > $amount) {
                     $this_amount = $amount;
@@ -413,9 +419,10 @@ function umc_do_withdraw() {
                     $this_amount = $row['amount'];
                     $amount -= $this_amount;
                 }
-                $all_items[$id] = array('item_name' => $item_name, 'amount' => $this_amount);
+                $all_items[$id] = array('item_name' => $item_name, 'amount' => $this_amount, 'nbt' => $nbt);
             }
             umc_check_space_multiple($all_items);
+            umc_log('deposit', 'withdraw', "$player is withdrawing $amount of $item_name");
             foreach ($all_items as $id => $data) {
                 umc_checkout_goods($id, $data['amount'], 'deposit');
             }
@@ -454,6 +461,7 @@ function umc_deposit_give_item($recipient, $item_name, $data, $meta, $amount, $s
     XMPP_ERROR_trace(__FUNCTION__, func_get_args());
     global $UMC_DATA_ID2NAME, $UMC_DATA;
     if (is_numeric($item_name)) {
+        XMPP_ERROR_trigger('UMC_DATA_ID2NAME USAGE');
         $item_name = $UMC_DATA_ID2NAME[$item_name];
     }
 
@@ -471,9 +479,10 @@ function umc_deposit_give_item($recipient, $item_name, $data, $meta, $amount, $s
     $recipient_uuid = umc_uuid_getone($recipient, 'uuid');
     $sender_uuid = umc_uuid_getone($sender, 'uuid');
 
+    $meta_sql = umc_mysql_real_escape_string($meta);
     $sql = "SELECT * FROM minecraft_iconomy.deposit
         WHERE item_name='$item_name' AND recipient_uuid='$recipient_uuid'
-        AND damage='$data' AND meta='$meta' AND sender_uuid='$sender_uuid';";
+        AND damage='$data' AND meta=$meta_sql AND sender_uuid='$sender_uuid';";
     $D = umc_mysql_fetch_all($sql);
 
         // check first if some of item from same source is already in deposit
@@ -482,8 +491,9 @@ function umc_deposit_give_item($recipient, $item_name, $data, $meta, $amount, $s
         $sql = "UPDATE minecraft_iconomy.`deposit` SET `amount`=amount+$amount WHERE `id`={$row['id']} LIMIT 1;";
     } else {
         // otherwise create a new deposit box
+        $meta_sql = umc_mysql_real_escape_string($meta);
         $sql = "INSERT INTO minecraft_iconomy.`deposit` (`damage` ,`sender_uuid` ,`item_name` ,`recipient_uuid` ,`amount` ,`meta`)
-            VALUES ('$data', '$sender_uuid', '$item_name', '$recipient_uuid', '$amount', '$meta');";
+            VALUES ('$data', '$sender_uuid', '$item_name', '$recipient_uuid', '$amount', $meta_sql);";
     }
     umc_mysql_execute_query($sql);
 }
@@ -520,8 +530,8 @@ function umc_do_deposit_internal($all = false) {
 
         // check for bugs
         if (!isset($UMC_DATA[$item_id])) {
-            XMPP_ERROR_trigger("Invalid item deposit cancelled!");
-            umc_error("Sorry, the item in your inventory is bugged, uncovery was notfied and this should be fixed soon. IF you want to speed it up, please send a ticket with as much detail as possible.");
+            XMPP_ERROR_trigger("Invalid item deposit: $item_id!");
+            $UMC_DATA[$item_id] = array('stack' => 64, 'avail' => true);
         }
 
         // deal with item metadata
@@ -558,6 +568,9 @@ function umc_do_deposit_internal($all = false) {
         // decide who the reciever is
         if (isset($args[2]) && $args[2]) {
             $recipient = umc_sanitize_input($args[2], 'player');
+            if ($recipient == 'uncovery') {
+                umc_error("Thanks for your generosity, but Uncovery does not need that!");
+            }
             $recipient_uuid = umc_user2uuid($recipient);
         } else {
             $recipient = $player;
@@ -583,9 +596,10 @@ function umc_do_deposit_internal($all = false) {
         umc_echo("{yellow}[!]{gray} You have {yellow}$inv{gray} items in your inventory, depositing {yellow}$amount");
 
         // retrieve the data from the db
+        $meta_sql = umc_mysql_real_escape_string($meta);
         $sql = "SELECT * FROM minecraft_iconomy.deposit
             WHERE item_name='{$item['item_name']}' AND recipient_uuid='$recipient_uuid'
-            AND damage='$data' AND meta='$meta' AND sender_uuid='$uuid';";
+            AND damage='$data' AND meta=$meta_sql AND sender_uuid='$uuid';";
         $D = umc_mysql_fetch_all($sql);
 
         // create the seen entry so we do not do this again
@@ -661,6 +675,8 @@ function umc_do_deposit_internal($all = false) {
 
     // get players occupied box count
     $count = umc_depositbox_realcount($uuid, 'occupied');
+    
+    umc_shop_transaction_record($uuid, $recipient_uuid, $amount, 0, $item['item_name'], $data, $meta);
 
     umc_echo("{green}[+]{gray} You have now used {white}$count of $allowed{gray} deposit boxes");
 }
@@ -764,10 +780,11 @@ function umc_depositbox_consolidate() {
         foreach ($doubles as $row) {
             // then we take each entry that is not created by the user and move it to a box created by the user
             // existing entry must be made by user
+            $meta_sql = umc_mysql_real_escape_string($row['meta']);
             $sql_fix = "SELECT * FROM minecraft_iconomy.deposit
                 WHERE item_name='{$row['item_name']}'
 		    AND damage='{$row['damage']}'
-		    AND meta='{$row['meta']}'
+		    AND meta=$meta_sql
 		    AND recipient_uuid='$uuid'
 		    AND sender_uuid !='$uuid';";
             $fix_data = umc_mysql_fetch_all($sql_fix);

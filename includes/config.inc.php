@@ -37,8 +37,12 @@ $UMC_SETTING = array(
         'wordpress' => $UMC_PATH_MC . "/public_html",
         'bukkit' => $UMC_PATH_MC . "/server/bukkit",
         'url' =>  $UMC_DOMAIN,
+        'worlds_mint' => $UMC_PATH_MC . '/server/worlds_mint',
+        'worlds_save' => $UMC_PATH_MC . '/server/worlds_save',
     ),
     'url' => "$UMC_DOMAIN/admin/index.php",
+    // this is needed for unc_serial_curl
+    'ssl_cert' => "/home/includes/certificates/cacert.pem",
     'whitelist_file' => $UMC_PATH_MC . '/server/data/whitelist.json',
     'markers_file' => $UMC_PATH_MC . '/server/data/markers.json',
     'world_folder' => $UMC_PATH_MC . '/server/bukkit/city/',
@@ -57,7 +61,6 @@ $UMC_SETTING = array(
         'empire_new' => array('max_coord' => 2048, 'chunkborder' => 512),
         'flatlands' => array('max_coord' => 1280, 'chunkborder' => 256),
         'skyblock' => array('max_coord' => 1280, 'chunkborder' => 256),
-        'darklands' => array('max_coord' => 1280, 'chunkborder' => 256),
         'city' => array('max_coord' => 1100, 'chunkborder' => 512, 'top_offset' => 450, 'left_offset' => -600),
         'kingdom' => array('max_coord' => 3264, 'chunkborder' => 320),
         'draftlands' => array('max_coord' => 3264, 'chunkborder' => 320),
@@ -89,7 +92,7 @@ $UMC_SETTING = array(
         'Owner'                 => array('empire' => 91, 'aether' => 92, 'kingdom' => 193, 'skyblock' => 94, 'draftlands' =>  195),
     ),
     'lot_costs' => array(
-        '^king_[a-zA-Z]+\d*$' => 10000, // main kingdom lot
+        '^king_[a-zA-Z]+\d*$' => array('base' => 10000, 'power' => 2),// main kingdom lot
         '^king_[a-zA-Z]+\d*_b$' => 40, // kingdom corner lot B
         '^king_[a-zA-Z]+\d*_a$' => 650, // vertical street lot A
         '^king_[a-zA-Z]+\d*_c$' => 650, // horizontal street lot
@@ -119,6 +122,7 @@ $UMC_SETTING = array(
         'Master', 'MasterDonator',
         'Elder', 'ElderDonator',
     ),
+    // these are the legacy groups with donators. to be phased out
     'ranks' => array('Guest',
         'Settler','SettlerDonator',
         'Citizen','CitizenDonator',
@@ -128,4 +132,16 @@ $UMC_SETTING = array(
         'Elder','ElderDonator',
         'Owner'
     ),
+    // "Normal" userlevels (without special ranks such as donator
+    'usergroups' => array(
+        'Guest',
+        'Settler',
+        'Citizen',
+        'Architect',
+        'Designer',
+        'Master',
+        'Elder',
+        'Owner'
+    ),
+    'list_length' => 100, // how long should web tables be maximal (default?)
 );

@@ -33,7 +33,9 @@ $HARDCORE = array(
 
 $WS_INIT['hardcore'] = array(  // the name of the plugin
     'disabled' => false,
-    'events' => false,
+    'events' => array(
+        'server_pre_reboot' => 'umc_hardcore_resetworld',
+    ),
     'default' => array(
         'help' => array(
             'title' => 'Hardcore Gameplay',  // give it a friendly title
@@ -211,6 +213,7 @@ function umc_hardcore_resetworld() {
     if ($end_date == $today_str) {
         $cmd = '"rm -R /home/minecraft/server/bukkit/deathlands/*"';
         exec($cmd);
+        echo "Rest the hardcore world with the commend $cmd\n";
     }
 }
 

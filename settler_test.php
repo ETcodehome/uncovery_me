@@ -134,7 +134,7 @@ function umc_settler_new() {
         case 4:
             if (!isset($s_post['lot'])) {
                 $step = 3;
-                umc_log('settler_test', 'step_3_fail', "$player failed step 3");
+                umc_log('settler_test', 'step_3_fail', "$player failed step 3, no lot chosen");
                 $error = 'You need to choose lot to continue!';
             }
             break;
@@ -178,25 +178,28 @@ function umc_settler_new() {
     }
 
     // questions
-    $out .= "<strong>$error</strong><br>";
+    $out .= "<strong style=\"font-size: 24px; border: 1px solid red; margin: 5px; padding: 5px;\">$error</strong><br>";
     switch ($step) {
         case 0:
             umc_log('settler_test', 'start', "$player started the settler test");
-            $out .= "<form action=\"$UMC_DOMAIN/server-access/buildingrights/\" method=\"post\">\n"
-                . "<h1>Step 1: Welcome!</h1>\n"
-                . "<h2>Once you finish this test, you will be settler!</h2>\n"
-                . "<h2>Before Applying</h2>\n"
-                . "<ul>\n"
-                . "    <li>You must have some experience playing Minecraft.</li>\n"
-                . "    <li>Read the <a href=\"$UMC_DOMAIN/faq/\">FAQ</a></li>\n"
-                . "    <li>Read the <a href=\"$UMC_DOMAIN/rules/\">Rules</a></li>\n"
-                . "    <li>Read the <a href=\"$UMC_DOMAIN/user-levels/\">User Levels and Commands</a> page.</li>\n"
-                . "</ul>\n"
-                . "This process will guide you through the process of getting building rights on the server and at the same time give you a lot and make sure you get there. "
-                . "You will need to login to the server with your minecraft client during the process and keep this website open.<br>"
-                //. "<strong>Note:</strong> This test system is new, but easier and faster. If you are having trouble with it, please use the <a href=\"$UMC_DOMAIN/server-access/private-area-allocation-map/\">old test</a><br>"
-                . "<input type=\"hidden\" name=\"step\" value=\"1\">\n"
-                . "<input type=\"submit\" name=\"Next\" value=\"Next\">\n";
+            $out .= "
+                <noscript>
+                    <h1>YOU NEED TO ENABLE JAVASCRIPT TO USE THIS!</h1>
+                </noscript>
+                <form action=\"$UMC_DOMAIN/server-access/buildingrights/\" method=\"post\">
+                <h1>Step 1: Welcome!</h1>
+                <h2>Once you finish this test, you will be settler!</h2>
+                <h2>Before Applying</h2>
+                <ul>
+                    <li>You must have some experience playing Minecraft.</li>
+                    <li>Read the <a href=\"$UMC_DOMAIN/faq/\">FAQ</a></li>
+                    <li>Read the <a href=\"$UMC_DOMAIN/rules/\">Rules</a></li>
+                    <li>Read the <a href=\"$UMC_DOMAIN/user-levels/\">User Levels and Commands</a> page.</li>
+                </ul>
+                This process will guide you through the process of getting building rights on the server and at the same time give you a lot and make sure you get there.
+                You will need to login to the server with your minecraft client during the process and keep this website open.<br>
+                <input type=\"hidden\" name=\"step\" value=\"1\">
+                <input type=\"submit\" name=\"Next\" value=\"Next\">\n";
             break;
         case 1:
             $warning = '';
@@ -420,7 +423,7 @@ function umc_settler_new() {
                     XMPP_ERROR_trigger("The settler promotion email could not be sent!");
                 }
                 // check userlevel to make sure
-                $new_level = umc_get_userlevel($player);
+                $new_level = umc_userlevel_get($uuid, true);
                 if ($new_level != 'Settler') {
                     XMPP_ERROR_trigger("$userlevel $player did NOT got promoted with command " . $cmd . " he's still $new_level");
                 }

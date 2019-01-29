@@ -73,118 +73,100 @@ $lottery_urls = array(
     'minecraftservers.org' => array('url' => 'http://minecraftservers.org/vote/160828', 'id' => 'minecraftservers.org', 'val' => 50),
     // 'mineservers.net' => array('url' => 'http://www.mineservers.net/servers/834-uncovery-minecraft/vote', 'id' => 'mineservers.net', 'val' => 100),
     'minecraft-mp.com' => array('url' => 'http://minecraft-mp.com/server/49/vote/', 'id' => 'minecraft-mp.com', 'val' => 50),
-    'minestatus.net' => array('url' => 'https://www.minestatus.net/152-uncovery-minecraft/vote', 'id' => 'minestatus', 'val' => 50),
+    'minecraftservers.biz' => array('url' => 'https://minecraftservers.biz/servers/824/', 'id' => 'minecraftservers.biz', 'val' => 50),
     'minecraft-servers-list.org' => array('url' => 'http://www.minecraft-servers-list.org/index.php?a=in&u=uncovery', 'id' => 'minecraft-servers-list.org', 'val' => 50),
-    'minecraftservers.net' => array('url' => 'http://minecraftservers.net/server.php?id=5881', 'id' => 'minecraftservers', 'val' => 50),
+    // 'minecraftservers.net' => array('url' => 'http://minecraftservers.net/server.php?id=5881', 'id' => 'minecraftservers.net', 'val' => 50),
 );
 
 $lottery = array(
     'diamond' => array(
-        'chance' => 100,
+        'chance' => 99,
         'type' => 'item',
-        'data' => 264,
         'txt' => 'a shiny, tiny, diamond',
         'detail' => array(
-            'type' => 264,
-            'data' => 0,
-            'ench' => '',
+            'item_name' => 'diamond',
+            'nbt' => '',
         ),
     ),
-    'diamondblock' => array(
+    'trident' => array(
+        'chance' => 1,
+        'type' => 'item',
+        'txt' => 'a trident!!',
+        'detail' => array(
+            'item_name' => 'trident',
+            'nbt' => '',
+        ),
+    ),     
+    'diamond_block' => array(
         'chance' => 10,
         'type' => 'item',
-        'data' => 57,
         'txt' => 'an ugly, heavy diamond block',
         'detail' => array(
-            'type' => 57,
-            'data' => 0,
-            'ench' => '',
+            'item_name' => 'diamond_block',
+            'nbt' => '',
         ),
     ),
-    'goldenapple' => array(
+    'golden_apple' => array(
         'chance' => 70,
         'type' => 'item',
-        'data' => 322,
         'txt' => 'a shiny golden apple (Yum!)',
         'detail' => array(
-            'type' => 322,
-            'data' => 0,
-            'ench' => '',
+            'item_name' => 'golden_apple',
+            'nbt' => '',
         ),
     ),
     'cake' => array(
         'chance' => 50,
         'type' => 'item',
-        'data' => 354,
         'txt' => 'an entire cake (Happy Cakeday!)',
         'detail' => array(
-            'type' => 354,
-            'data' => 0,
-            'ench' => '',
+            'item_name' => 'cake',
+            'nbt' => '',
         ),
     ),
     'coal' => array(
         'chance' => 10,
         'type' => 'item',
-        'data' => 263,
         'txt' => 'a NOT shiny piece of coal',
         'detail' => array(
-            'type' => 263,
-            'data' => 0,
-            'ench' => '',
+            'item_name' => 'coal',
+            'nbt' => '',
         ),
     ),
     'enchanted_pick' => array(
         'chance' => 10,
         'type' => 'item',
-        'data' => '270 1 DIG_SPEED:5 SILK_TOUCH:1 LOOT_BONUS_BLOCKS:3',
         'txt' => 'a super-enchanted wooden pickaxe',
         'detail' => array(
-            'type' => 270,
-            'data' => 0,
-            'ench' => array(
-                'DIG_SPEED' => 5,
-                'SILK_TOUCH' => 1,
-                'LOOT_BONUS_BLOCKS' => 3,
-            ),
+            'item_name' => 'wooden_pickaxe',            
+            'nbt' => '{RepairCost:7,Enchantments:[{lvl:1,id:"minecraft:silk_touch"},{lvl:5,id:"minecraft:efficiency"},{lvl:3,id:"minecraft:unbreaking"}]}',
         ),
     ),
     'enchanted_sword' => array(
         'chance' => 10,
         'type' => 'item',
-        'data' => '268 1 DAMAGE_ALL:5 KNOCKBACK:2 FIRE_ASPECT:2 LOOT_BONUS_MOBS:3',
         'txt' => 'a super-enchanted wooden sword',
         'detail' => array(
-            'type' => 268,
-            'data' => 0,
-            'ench' => array(
-                'DAMAGE_ALL' => 5,
-                'KNOCKBACK' => 2,
-                'FIRE_ASPECT' => 2,
-                'LOOT_BONUS_MOBS' => 3,
-            ),
+            'item_name' => 'wooden_sword',
+            'nbt' => '{RepairCost:63,Enchantments:[{lvl:3,id:"minecraft:unbreaking"},{lvl:5,id:"minecraft:sharpness"},{lvl:3,id:"minecraft:sweeping"},{lvl:3,id:"minecraft:looting"},{lvl:2,id:"minecraft:fire_aspect"},{lvl:2,id:"minecraft:knockback"}]}',
         ),
     ),
     'dirtblock' => array(
         'chance' => 10,
         'type' => 'item',
-        'data' => 3,
         'txt' => 'a big block of extra-fine dirt',
         'detail' => array(
-            'type' => 3,
-            'data' => 0,
-            'ench' => '',
+            'item_name' => 'dirt',
+            'nbt' => '',
         ),
     ),
     'cookie' => array(
         'chance' => 70,
         'type' => 'item',
-        'data' => 357,
         'txt' => 'a hot cookie (OUCH!)',
         'detail' => array(
-            'type' => 357,
-            'data' => 0,
-            'ench' => '',
+            'item_name' => 'cookie',
+            'nbt' => '',
         ),
     ),
     'random_pet' => array(
@@ -193,8 +175,8 @@ $lottery = array(
         'data' => 'pet',
         'txt' => 'a random Animal Egg',
         'blocks' => array(
-            'donkey', 'mule', 'pig', 'sheep', 'cow', 'chicken', 'squid', 'wolf',
-            'mooshroom', 'ocelot', 'horse', 'polar_bear', 'llama', 'villager',
+            'donkey_spawn_egg', 'mule_spawn_egg', 'pig_spawn_egg', 'sheep_spawn_egg', 'cow_spawn_egg', 'chicken_spawn_egg', 'squid_spawn_egg', 'wolf_spawn_egg',
+            'mooshroom_spawn_egg', 'ocelot_spawn_egg', 'horse_spawn_egg', 'polar_bear_spawn_egg', 'llama_spawn_egg', 'villager_spawn_egg',
         ),
     ),
     'random_unc' => array(
@@ -203,55 +185,42 @@ $lottery = array(
         'data' => 'unc',
         'txt' => 'a random amount of Uncs (max 500)',
     ),
-    'random_common' => array(
-        'chance' => 100,
-        'type' => 'random_common',
+    'random_item' => array(
+        'chance' => 90,
+        'type' => 'random_item',
         'data' => 'common',
-        'txt' => '1-64 of random common block',
+        'txt' => '1 of random item',
         'blocks' => array(
-            'grass:0', 'dirt:0', 'cobblestone:0', 'planks:0', 'planks:1', 'planks:2',
-            'planks:3', 'planks:4', 'planks:5', 'sand:0', 'gravel:0', 'log:0', 'log:1',
-            'log:2', 'log:3', 'log2:0', 'log2:1', 'sandstone:0', 'netherrack:0',
-            'soul_sand:0', 'mycelium:0',
+            
         ),
     ),
     'random_sapling' => array(
-        'chance' => 50,
+        'chance' => 100,
         'type' => 'random_sapling',
         'data' => 'common',
         'txt' => '1-64 of random sapling',
         'blocks' => array(
-            'sapling:0', 'sapling:1', 'sapling:2', 'sapling:3', 'sapling:4',
+            "dark_oak_sapling", "jungle_sapling", "oak_sapling", "spruce_sapling", "acacia_sapling", "birch_sapling"
         ),
     ),
     'random_ore' => array(
         'chance' => 50,
         'type' => 'random_ore',
         'data' => 'ore',
-        'txt' => '1-64 of random rare block',
+        'txt' => '1-64 of random ore',
         'blocks' => array(
-            'coal_ore:0', 'iron_ore:0', 'lapis_ore:0', 'mossy_cobblestone:0', 'diamond_ore:0',
-            'redstone_ore:0', 'ice:0', 'snow_block:0', 'clay:0', 'glowstone:0', 'pumpkin:0', 'stonebrick:0',
-            'mycelium:0', 'nether_brick:0', 'emerald_ore:0', 'end_stone:0', 'redstone_block:0',
-            'quartz_ore:0', 'quartz_block:0', 'coal_block:0', 'packed_ice:0',
+            'gold_ore', 'coal_ore', 'iron_ore', 'lapis_ore', 'diamond_ore', 'redstone_ore', 'emerald_ore', 'nether_quartz_ore', 
         ),
     ),
-    'random_manuf' => array(
+/*    'random_manuf' => array(
         'chance' => 140,
         'type' => 'random_manuf',
         'data' => 'man',
         'txt' => '1-64 of random manufactured block',
         'blocks' => array(
-            'glass:0', 'dispenser:0', 'noteblock:0', 'golden_rail:0', 'detector_rail:0',
-            'sticky_piston:0', 'piston:0', 'wool:0', 'stone_slab:0', 'brick_block:0',
-            'bookshelf:0', 'obsidian:0', 'chest:0', 'furnace:0', 'ladder:0', 'rail:0',
-            'stone_stairs:0', 'jukebox:0', 'lit_pumpkin:0', 'stained_glass:0',
-            'stained_glass:1', 'stained_glass:2', 'stained_glass:3', 'stained_glass:4',
-            'stained_glass:5', 'stained_glass:6', 'stained_glass:7', 'stained_glass:8',
-            'stained_glass:9', 'stained_glass:10', 'stained_glass:11', 'stained_glass:12',
-            'stained_glass:13', 'stained_glass:14', 'stained_glass:15', 'redstone_lamp:0',
+            
         ),
-    ),
+    ),*/
     'random_ench' => array(
         'chance' => 68, // rate of 69 in 1000
         'type' => 'random_ench',
@@ -259,7 +228,7 @@ $lottery = array(
         'txt' => 'a random single-enchanted item',
     ),
     'random_potion' => array(
-        'chance' => 50, // rate of 69 in 1000
+        'chance' => 100, // rate of 69 in 1000
         'type' => 'random_potion',
         'data' => 'potion',
         'txt' => 'a random potion',
@@ -306,24 +275,68 @@ function umc_lottery_vote() {
     umc_header("Voting servers:");
     foreach ($lottery_urls as $L) {
         if (!in_array($L['id'], $voted)) {
-            umc_echo($L['url']);
+            $data = array(
+                array('text' => " - ", 'format' => array('white')),
+                array('text' => $L['id'], 'format' => array('open_url' => $L['url'], 'yellow')),
+                array('text' => ", \${$L['val']} UNC reward" , 'format' => array('white')),
+            );
+            umc_text_format($data, false, false);
         }
     }
+        $data = array(
+            array('text' => "(Click on the yellow text to open in browser)", 'format' => array('white')),
+        );
+        umc_text_format($data, false, false);
     umc_footer();
 }
 
 /**
- * displays a list of all lottery links for the website
+ * Prints a list of all voting servers on the web for easier voting
+ * @global array $lottery_urls
  */
-function umc_lottery_votelist_web() {
-    global $lottery_urls;
-    $out = "<br><ul>\n";
-    foreach ($lottery_urls as $id => $L) {
-        $out .= "<li><a href='{$L['url']}'>$id</a></li>\n";
+function umc_lottery_vote_web() {
+    // get the votes of the current user in the last 24 hours
+
+    global $UMC_USER, $lottery_urls;
+    $out = '';
+    $voted = array();
+
+    // don't show servers the user voted already for
+    if ($UMC_USER) {
+        $uuid_sql = umc_mysql_real_escape_string($UMC_USER['uuid']);
+        $sql = "SELECT website FROM minecraft_log.votes_log WHERE username=$uuid_sql AND datetime > DATE_SUB(NOW(), INTERVAL 24 HOUR)";
+        $W = umc_mysql_fetch_all($sql);
+        if (count($W) == count($lottery_urls)) {
+           $out .= "You voted on all lists in the last 24 hours already! Thanks!";
+           return $out;
+        }
+        foreach ($W as $row) {
+            $voted[] = $row['website'];
+        }
     }
+
+    $out .= "Voting servers:<br>
+        <ul>\n";
+    foreach ($lottery_urls as $L) {
+        if (!in_array($L['id'], $voted)) {
+            $out .= "<li><a href=\"{$L['url']}\" target=\"_blank\">{$L['id']}</a> ({$L['val']} Uncs)</li>";
+        }
+    }
+
+    if (count($voted) > 0) {
+        $out .= "</ul>";
+        $out .= "You voted already on these in the last 24 hours:
+            <ul>\n";
+        foreach ($lottery_urls as $L) {
+            if (in_array($L['id'], $voted)) {
+                $out .= "<li><a href=\"{$L['url']}\" target=\"_blank\">{$L['id']}</a></li>";
+            }
+        }
+    }
+
     $out .= "</ul>";
-    $out .= "<p><strong>Use /withdraw @lottery to get your stuff, use /vote in-game to display this list for easier voting!</strong></p>";
-    echo $out;
+
+    return $out;
 }
 
 
@@ -337,6 +350,12 @@ function umc_lottery_reminder() {
     global $UMC_USER;
     $player = $UMC_USER['username'];
     $uuid = $UMC_USER['uuid'];
+    
+    // do not tell Guests to vote
+    $userlevel = $UMC_USER['userlevel'];
+    if ($userlevel == "Guest") {
+        return;
+    }
 
     $checkdate = date("Y-m-d H:i:s", strtotime("-24 hours"));
 
@@ -355,6 +374,7 @@ function umc_lottery_reminder() {
         // politely remind users they need to vote dammit!
         $title =  'title ' . $player . ' title {"text":"Please vote!","color":"green"}';
 
+        // TODO there should be a separate event to handle this
         // add some variety to login welcome messages!
         $messages = array(
             'Welcome back ' . $player .'!',
@@ -388,6 +408,12 @@ function umc_lottery_reminder() {
     }
 }
 
+/**
+ * calculate the number of votes vs. the number of logins of a user over the last 30 days.
+ *
+ * @param type $uuid
+ * @return string|int
+ */
 function umc_lottery_stats($uuid) {
     // check how often the user logged in during the last 30 days
     $username = umc_uuid_getone($uuid, 'username');
@@ -495,7 +521,6 @@ function umc_lottery_retrieve_entries($hours = 24){
 
     // send back the array of entries within time period
     return($D);
-
 }
 
 /**
@@ -530,11 +555,11 @@ function umc_lottery_show_chances() {
 
 function umc_lottery() {
     XMPP_ERROR_trace(__FUNCTION__, func_get_args());
-    global $UMC_USER, $lottery, $ENCH_ITEMS;
+    global $UMC_USER, $lottery, $ENCH_ITEMS, $lottery_urls, $UMC_DATA;
 
-    $user_input = $UMC_USER['args'][2];
+    $user_input = trim($UMC_USER['args'][2]);
 
-    // check if there is a valid user on the server before applying the vote.
+    // check if there is a valid, active user on the server before applying the vote.
     $user = umc_check_user($user_input);
     if (!$user) {
         umc_log("lottery", "voting", "user $user does not exist");
@@ -544,13 +569,18 @@ function umc_lottery() {
     // get the voting players uuid
     $uuid = umc_user2uuid($user);
 
-    // give reinforcing feedback - set subtitle (not displayed)
-    $subtitle =  'title ' . $user . ' subtitle {"text":"Thanks for your vote!","color":"gold"}';
-    umc_ws_cmd($subtitle, 'asConsole');
+    $active_check = umc_users_is_active($uuid);
+    if (!$active_check) {
+        umc_log("lottery", "voting", "user $user / $uuid is not an active user!");
+        XMPP_ERROR_send_msg("user $user / $uuid is not an active user!");
+        return false;
+    }
 
-    // display the feedback - displays subtitle AND title
-    $title = 'title ' . $user . ' title {"text":"+100 Uncs","color":"gold"}';
-    umc_ws_cmd($title, 'asConsole');
+    // check if user is online so we don't message someone who isn't there
+    $user_is_online = false;
+    if (isset($UMC_USER['online_players'][$uuid])) {
+        $user_is_online = true;
+    }
 
     // allow uncovery to test chance rolls for debugging purposes
     $chance = false;
@@ -562,17 +592,10 @@ function umc_lottery() {
     // get the roll array based on chance
     $roll = umc_lottery_roll_dice($chance);
 
-    // umc_echo(umc_ws_vardump($roll));
-
     // define the rewards and item more legibly
     $item = $roll['item'];
     $luck = $roll['luck'];
     $prize = $lottery[$item];
-
-    //echo "type = {$prize['type']}<br>;";
-
-    //echo "complete chance: $chance<br>;";
-    //var_dump($prize);
 
     // get the metadata if required for the item
     if (isset($prize['detail'])) {
@@ -580,14 +603,12 @@ function umc_lottery() {
     }
     $type = $prize['type'];
 
-    //var_dump($prize);
-
     // based on item type, give reward to the player
     $non_deposit = array('additional_home', 'additional_deposit', 'vanity_title', 'random_unc');
     $give_data = 0;
     $give_type = 0;
     $give_amount = 1;
-    $give_ench = '';
+    $give_nbt = '';
     if (in_array($type, $non_deposit)) {
         $give_type = $type;
         switch ($type) {
@@ -620,14 +641,13 @@ function umc_lottery() {
         switch ($type) {
             case 'item':
                 $item_txt = $prize['txt'];
-                $give_type = $detail['type'];
-                $give_data = $detail['data'];
-                $give_ench = $detail['ench'];
+                $give_type = $detail['item_name'];
+                $give_nbt = $detail['nbt'];
                 break;
             case 'random_ench':
                 // pick which enchantment
                 $rand_ench = array_rand($ENCH_ITEMS);
-                $rand_ench_id = $ENCH_ITEMS[$rand_ench]['id'];
+                $rand_ench_type = $ENCH_ITEMS[$rand_ench]['key'];
 
                 $ench_arr = $ENCH_ITEMS[$rand_ench];
                 //pick which item to enchant
@@ -636,40 +656,39 @@ function umc_lottery() {
                 // pick level of enchantment
                 $lvl_luck = mt_rand(1, $ench_arr['max']);
                 //echo "$item $ench_txt $lvl_luck";
-                // {ench:[{lvl:5,id:16},{lvl:5,id:17},{lvl:5,id:18},{lvl:2,id:19},{lvl:2,id:20},{lvl:3,id:21}]}
-                $ench_nbt = "{ench:[{lvl:$lvl_luck,id:$rand_ench_id}]}";
+                // '{RepairCost:7,Enchantments:[{lvl:1,id:"minecraft:silk_touch"},{lvl:5,id:"minecraft:efficiency"},{lvl:3,id:"minecraft:unbreaking"}]}'
+                $ench_nbt = "{Enchantments:[{lvl:$lvl_luck,id:\"minecraft:$rand_ench_type\"}]}";
                 $item = umc_goods_get_text($rand_item_id, 0, $ench_nbt);
                 $item_name = $item['item_name'];
                 $full = $item['full'];
                 $item_txt = "a " . $full;
                 $give_type = $item_name;
-                $give_ench = $ench_nbt;
+                $give_nbt = $ench_nbt;
                 break;
             case 'random_pet': // same as blocks below but only 1 always
+            case 'random_ore':
+            case 'random_sapling':
                 // umc_echo($type);
                 $block = $prize['blocks'];
                 $luck2 = mt_rand(0, count($prize['blocks']) - 1);
                 $given_block = $block[$luck2];
-                $give_ench = "{EntityTag:{id:\"minecraft:$given_block\"}}";
-                $give_data = 0;
-                $give_type = 'spawn_egg';
-                $item = umc_goods_get_text($give_type, $give_data, $give_ench);
+                $give_nbt = "";
+                $give_type = $given_block;
+                $item = umc_goods_get_text($give_type, $give_data, $give_nbt);
                 $item_txt = "a " . $item['full'];
                 break;
-            case 'random_common':
-            case 'random_ore':
-            case 'random_sapling':
-            case 'random_manuf':
-                $block = $prize['blocks'];
-                $luck2 = mt_rand(0, count($prize['blocks']) - 1);
-                $luck3 = mt_rand(1, 64);
-                $given_block = explode(":", $block[$luck2]);
-                $give_type = $given_block[0];
-                $give_data = $given_block[1];
-                $item = umc_goods_get_text($give_type, $give_data);
+            case 'random_item':
+                $block = $UMC_DATA; // $prize['blocks'];
+                $luck3 = 1; // mt_rand(1, 64);
+                $stack = 0;
+                while ($stack == 0) {
+                    $give_type = array_rand($UMC_DATA);
+                    $stack = $UMC_DATA[$give_type]['stack'];
+                }
+                $item = umc_goods_get_text($give_type);
                 $item_txt = "$luck3 " . $item['full'];
                 $give_amount = $luck3;
-                break;
+                break;                
             case 'random_potion':
                 $types = array('lingering_potion', 'potion', 'splash_potion');
                 $type_luck = mt_rand(0, count($types) - 1);
@@ -678,12 +697,11 @@ function umc_lottery() {
                 $potion_luck = mt_rand(0, count($UMC_POTIONS) - 1);
                 $potion_keys = array_keys($UMC_POTIONS);
                 $potion_code = $potion_keys[$potion_luck];
-                $give_data = 0;
                 $item_txt = $give_type;
-                $give_ench = "{Potion:\"minecraft:$potion_code\"}";
+                $give_nbt = "{Potion:\"minecraft:$potion_code\"}";
                 $give_amount = 1;
         }
-        umc_deposit_give_item($uuid, $give_type, $give_data, $give_ench, $give_amount, 'lottery');
+        umc_deposit_give_item($uuid, $give_type, '', $give_nbt, $give_amount, 'lottery');
     }
 
 
@@ -691,9 +709,9 @@ function umc_lottery() {
         $item_nocolor = umc_ws_color_remove($item_txt);
         umc_mod_broadcast("$user voted, rolled a $luck and got $item_nocolor!", 'asConsole');
         umc_log('votelottery', 'vote', "$user rolled $luck and got $item_nocolor ($give_type:$give_data)");
-        $userlevel = umc_get_userlevel($user);
-        if (in_array($userlevel, array('Settler', 'Guest'))) {
-            $msg = "You received $item_txt from the lottery! Use {green}/withdraw @lottery{white} to get it!";
+        $userlevel = umc_userlevel_get($uuid);
+        if ($user_is_online && in_array($userlevel, array('Settler', 'Guest'))) {
+            $msg = "You received $item_txt from the lottery! Use '/withdraw @lottery' to get it!";
             umc_mod_message($user, $msg);
         }
 
@@ -701,7 +719,8 @@ function umc_lottery() {
         $service_raw = strtolower($UMC_USER['args'][3]);
         // fix service
         $search = array('http://www.', 'https://www.', 'http://', 'https://');
-        $service = umc_mysql_real_escape_string(str_replace($search, '', $service_raw));
+        $service_fixed = str_replace($search, '', $service_raw);
+        $service = umc_mysql_real_escape_string($service_fixed);
         // sql log
         $sql_reward = umc_mysql_real_escape_string($type);
         $ip = umc_mysql_real_escape_string($UMC_USER['args'][4]);
@@ -710,20 +729,30 @@ function umc_lottery() {
             VALUES ($uuid_sql, NOW(), $service, $ip, $luck, $sql_reward);";
         umc_mysql_query($sql, true);
     } else {
-        XMPP_ERROR_trigger("$user voted, rolled a $luck and got $item_txt! ($give_type $give_data, $give_ench)");
+        $service_fixed = 0;
+        XMPP_ERROR_trigger("$user voted, rolled a $luck and got $item_txt! ($give_type $give_nbt)");
     }
 
+    if ($user_is_online) {
+        // give reinforcing feedback - set subtitle (not displayed)
+        $subtitle =  'title ' . $user . ' subtitle {"text":"Thanks for your vote!","color":"gold"}';
+        umc_ws_cmd($subtitle, 'asConsole');
+    }
 
-    //TODO: Match the site with the lottery_urls
-
-    //TODO: determine the money given per lottery url
-
-    //TODO: make the return uncremental if several days in a row voting was done
-
-    // always give 100 uncs irrespective of roll.
-    umc_money(false, $user, 100);
-
-
+    // find the right reward uncs amount
+    foreach ($lottery_urls as $L) {
+        if ($service_fixed == $L['id']) {
+            $reward = $L['val'];
+            umc_money(false, $user, $reward);
+            // display the feedback - displays subtitle AND title
+            if ($user_is_online) {
+                $title = 'title ' . $user . ' title {"text":"+'. $reward. ' Uncs","color":"gold"}';
+                umc_ws_cmd($title, 'asConsole');
+            }
+            // and exit
+            return;
+        }
+    }
 }
 
 // returns an array with the item and roll value
@@ -757,13 +786,14 @@ function umc_lottery_roll_dice($chance = false) {
         $chance = $data['chance']; // get the chance of the item roll
         $rank = $rank + $chance; // add chance to running total
 
-        XMPP_ERROR_trace("Chance check between $lastrank and $rank");
+        $txt_rank = $lastrank + 1; // we fix since we use > to compare
+        XMPP_ERROR_trace("Chance check between $txt_rank and $rank");
         // if roll matches the item chances range
         if ($roll <= $rank && $roll > $lastrank) {
             return array('item' => $item, 'luck' => $roll); // return the item and the roll
         }
 
-        $lastrank = $rank; // set lastrank to running total of chance
+        $lastrank = $rank ; // set lastrank to running total of chance
         $last_item = $item; // set the last item to item currently iterated
     }
     // we should not arrive here in any case

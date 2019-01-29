@@ -22,7 +22,7 @@ global $UMC_SETTING, $WS_INIT;
 $WS_INIT['homes'] = array(  // the name of the plugin
     'disabled' => false,
     'events' => array(
-        // 'PlayerJoinEvent' => 'umc_home_import',
+        '2dmap_display' => 'umc_home_2d_map',
     ),
     'default' => array(
         'help' => array(
@@ -201,7 +201,7 @@ function umc_home_add($uuid, $name, $force = false){
 
     // add a prefix string to lottery home name to prevent conflict
     if (!$force) {
-        $userlevel = umc_get_uuid_level($uuid);
+        $userlevel = umc_userlevel_get($uuid);
         $max_homes = $UMC_SETTING['homes']['max_homes'][$userlevel];
 
         if ($count >= $max_homes) {
@@ -227,16 +227,16 @@ function umc_home_buy() {
     $cost = $cost = umc_home_calc_costs($count + 1);
     $userlevel = $UMC_USER['userlevel'];
     $max_homes = $UMC_SETTING['homes']['max_homes'][$userlevel];
-    
+
     // sanitise input and check if home name valid
     if (isset($args[2])) {
-        
+
         $sanitised_name = preg_replace('/[^a-zA-Z0-9_-]+/', '', trim($args[2]));
-        
+
         if ($sanitised_name != trim($args[2])){
             umc_error("{red}Home names must only contain numbers, letters, dashes(-) and underscores(_)");
         }
-        
+
         // check if the name already exists
         $name_check = umc_home_count($sanitised_name);
         if ($name_check > 0) {
@@ -317,10 +317,10 @@ function umc_home_update() {
 
     // check if the home exists
     if (isset($args[2])) {
-        
+
         // leave existing badly formatted names as valid things to replace
         $unsanitised_name = $args[2];
-        
+
         // check if the name actually exists to replace
         $name_check = umc_home_count($unsanitised_name);
         if ($name_check <> 1) {
@@ -336,11 +336,11 @@ function umc_home_update() {
     $log_addon = '';
     if (isset($args[3])) {
         $sanitised_name = preg_replace('/[^a-zA-Z0-9_-]+/', '', trim($args[3]));
-        
+
         if ($sanitised_name != trim($args[3])){
             umc_error("{red}Home names must only contain numbers, letters, dashes(-) and underscores(_)");
         }
-        
+
         // check if the name already exists
         $name_check = umc_home_count($sanitised_name);
         if ($name_check == 1) {
@@ -404,7 +404,9 @@ function umc_home_count($name = false, $uuid_req = false) {
     }
     global $UMC_USER;
     $name_sql = '';
-    if ($name) {
+
+    // this cannot be "if ($name)" since $home can be "0" in which case == false but not === false
+    if ($name !== false) {
         $name_sql = "AND name=" . umc_mysql_real_escape_string($name);
     }
     $sql = "SELECT count(home_id) as count FROM minecraft_srvr.homes WHERE uuid='$uuid' $name_sql;";
@@ -469,21 +471,50 @@ function umc_homes_array($uuid, $world = false) {
  * @param type $world
  * @return type
  */
-function umc_home_2d_map($uuid, $world) {
+function umc_home_2d_map($data) {
     XMPP_ERROR_trace(__FUNCTION__, func_get_args());
-    global $UMC_SETTING;
+    global $UMC_SETTING, $UMC_USER, $UMC_DOMAIN;
+    if (!$UMC_USER) {
+        return array();
+    }
+    $uuid = $UMC_USER['uuid'];
+    $world = $data['world'];
     $homes = umc_homes_array($uuid, $world);
+    
+    if (count($homes) == 0) {
+        return false;
+    }
 
     $icon = $UMC_SETTING['homes']['icon_url'];
-    $out = "\n";
+    $out = array('html'=> '', 'menu'=>  '');
+    $out['html'] = "\n<!-- Homes Plugin HTML start-->\n";
+    $out['menu'] = " Show home:\n <form action=\"$UMC_DOMAIN/admin/\" method=\"get\" style=\"display:inline;\">\n    <div style=\"display:inline;\">"
+        . "<select id=\"home_finder\" style=\"display:inline;\" onchange='find_home(this)'>\n"
+        . "<option disabled selected value> -- select a home -- </option>\n";
     foreach ($homes as $world => $world_homes) {
         foreach ($world_homes as $home => $coords) {
             $map_coords = umc_map_convert_coorindates($coords['x'], $coords['z'], $world);
             $top = $map_coords['z'];
             $left = $map_coords['x'];
-            $out .= "<img class='marker' style='width:20px; height:20px; z-index:99; top:{$top}px; left:{$left}px;' src='$icon' alt='Home $home $uuid'>\n";
+            $out['html'] .= "
+            <div id='home_$home' class='marker' style='font-size: 12px; font-family: sans-serif; z-index:99; top:{$top}px; left:{$left}px;'><img style='vertical-align:middle; height:20px; width:20px;' src='$icon' alt='Home $home' title='$home'>
+                <span style='vertical-align:middle;'>$home</span>
+            </div>\n";
+            $out['menu'] .= "<option value=\"$home|$top|$left\">$home</option>\n";
         }
     }
+    $out['menu'] .= "        </select>\n    </div></form>\n ";
+    $out['html'] .= "\n<!-- Homes Plugin HTML end-->\n";
+    $out['javascript'] = '
+        function find_home(element) {
+            var val_arr = element.value.split("|");
+            home_name = val_arr[0];
+            home_top = val_arr[1];
+            home_left = val_arr[2];
+            window.scrollTo(home_left - ($(window).width() / 2), home_top - ($(window).height() / 2))
+            $("#home_" + home_name).effect("shake");
+        }; 
+        ';
     return $out;
 }
 

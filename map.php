@@ -25,8 +25,20 @@
 
 global $UMC_FUNCTIONS;
 $UMC_FUNCTIONS['create_map'] = 'umc_create_map';
+$UMC_FUNCTIONS['lagmap'] = 'umc_lagmap';
 $UMC_FUNCTIONS['display_markers'] = 'umc_display_markers';
 
+/**
+ * display the 2D map
+ * HTML can be added through event '2dmap_display'
+ * 
+ * @global type $UMC_SETTING
+ * @global type $UMC_DOMAIN
+ * @global type $UMC_PATH_MC
+ * @global type $UMC_USER
+ * @global string $UMC_ENV
+ * @return type
+ */
 function umc_create_map() {
     global $UMC_SETTING, $UMC_DOMAIN, $UMC_PATH_MC, $UMC_USER, $UMC_ENV;
     $timer = array();
@@ -60,7 +72,7 @@ function umc_create_map() {
     }
 
     // get donators
-    $donators = umc_userlevel_donators_list();
+    $donators = umc_donation_list_donators();
 
     $track_player_icon = '';
     $find_lot = false;
@@ -126,6 +138,22 @@ function umc_create_map() {
             $menu .= "<form action=\"$UMC_DOMAIN/server-access/buildingrights/\" method=\"post\">\n"
             . "<input type=\"hidden\" name=\"step\" value=\"9\">\n<input type=\"hidden\" name=\"world\" value=\"$world\"><input type=\"hidden\" name=\"lot\" value=\"$player_lot\">\n";
     }
+    
+    // plugin content
+    // the data is returned as an array with 3 strings to this, 'html' and 'menu' 'javascript'
+    // html is added to the body, menu is added to the menu. duh.
+    $plugins_content = umc_plugin_eventhandler('2dmap_display', array('world' => $world));
+    $plugin_html = '';
+    $plugin_menu = '';
+    $plugin_javascript = '';
+    foreach ($plugins_content as $plugin_content) {
+        if (!isset($plugin_content['html'])) { // if plugin does not provide additonal content, it returns false
+            continue;
+        }
+        $plugin_html .= $plugin_content['html'];
+        $plugin_menu .= $plugin_content['menu'];
+        $plugin_javascript .= $plugin_content['javascript'];
+    }   
 
     $menu .= "<div id=\"menu_2d_map\">\n";
 
@@ -133,13 +161,25 @@ function umc_create_map() {
         // create the top menu
         $menu .= umc_map_menu($worlds, $world, $freeonly);
     } else if ($settler_test){
-        $menu .= "Pick a lot that looks nice to you. Closer to spawn is more convenient. <button type='button' onclick='find_spawn()'>Find Spawn</button> Then click here: "
-            . "<input id=\"settler_test_next\" type=\"submit\" name=\"Next\" value=\"Next\">\n";
+        $menu .= "Pick a lot that looks nice to you. Closer to spawn is more convenient. <button type='button' onclick='find_spawn()'>Find Spawn</button> Then a button will be visible here: "
+            . "<input style=\"display:none\" id=\"settler_test_next\" type=\"submit\" name=\"Next\" value=\"Next\">\n";
     } else if ($find_lot) {
         $menu .= "Walk in-game along the red line to your lot $player_lot and then press "
             . "<input type=\"submit\" name=\"Next\" value=\"Next\"> <button type='button' onclick='find_spawn()'>Find Spawn</button> \n";
     } else {
         $menu .= "Find your user head on the map and click on the button next to it!";
+    }
+    $menu .= $plugin_menu;
+    
+    // get and display file date at the end of the menu
+    $image = "$UMC_PATH_MC/server/maps/$world.jpg";
+    if (file_exists($image)) {
+        $date_obj = $datetime = DateTime::createFromFormat('U', filemtime($image));
+        $date_diff = umc_timer_format_diff($date_obj);
+
+        $menu .= " <small>($world map image was updated $date_diff ago)</small>";
+    } else {
+        $menu .= "There is no image for this map!";
     }
     $menu .= "</div>\n";
 
@@ -183,10 +223,8 @@ function umc_create_map() {
     } else {
         $html .= umc_read_markers_file('html', $world);
     }
-    // add home markers if user is logged in
-    if ($UMC_USER) {
-        $html .= umc_home_2d_map($UMC_USER['uuid'], $world);
-    }
+    
+    $html .= $plugin_html;
 
     //$repl_arr = array(',','-');
     $kingdom = '';
@@ -392,6 +430,7 @@ function umc_create_map() {
 <html>
     <head>
         <title>Uncovery Minecraft 2D Map: '. $world . '</title>
+        <link rel="icon" href="https://uncovery.me/favicon.ico?v=2" />
         <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
         <script type="text/javascript" src="/admin/js/jquery-1.11.1.min.js"></script>
         <script type="text/javascript" src="/admin/js/jquery-ui.min.js"></script>
@@ -419,6 +458,8 @@ function umc_create_map() {
             function select_lot(lot_radio, lot_name) {
                 $("#" + lot_radio).prop("checked", true);
                 $("#settler_test_next").prop("value", "Chose Lot " + lot_name);
+                $("#settler_test_next").show();
+                $("#settler_test_next").delay(500).slideDown(500);
             }
             var markers_url = "' . $UMC_DOMAIN. '/admin/index.php?function=display_markers&world=' . $world . $track_player_icon . '";
             var markers_menu_url = "' . $UMC_DOMAIN. '/admin/index.php?function=display_markers&format=scrollto&world=' . $world . '";
@@ -467,10 +508,201 @@ if ($find_lot) {
     if (!$settler_test) {
         $header .= '$(document).ready(function() {update_positions();});';
     }
-    $header .= "\n</script>\n";
+    
+    $header .= $plugin_javascript . "\n</script>\n";
 
     $out =  $header . $css . "</head>\n<body>\n" .  $menu . $html
         . "</div>n</body>\n</html>\n";
+    // XMPP_ERROR_trigger("construction done");
+    echo $out;
+}
+
+function umc_lag_data($world, $format) {
+    global $UMC_SETTING;
+    $out = '';
+
+    // get the max number of events
+    $max_sql = "SELECT count(event_id) AS counter FROM minecraft_log.lag_events GROUP BY chunk_id ORDER BY counter DESC LIMIT 1";
+    $X = umc_mysql_fetch_all($max_sql);
+    $max_events = $X[0]['counter'];
+
+    // we get the overall minimum TPS for the server
+    $min_sql = "SELECT MIN(tps) as min_tps, MAX(tps) as max_tps FROM minecraft_log.lag_events";
+    $M = umc_mysql_fetch_all($min_sql);
+    $min_tps = $M[0]['min_tps'];
+    $max_tps = $M[0]['max_tps'];
+
+    if (!isset($UMC_SETTING['world_img_dim'][$world])) {
+        $coordsql = "SELECT MIN(x_coord) AS min_x, MAX(x_coord) AS max_x, MIN(z_coord) AS min_z, MAX(z_coord) AS max_z
+            FROM minecraft_log.lag_chunks
+            WHERE world='$world';";
+        $C = umc_mysql_fetch_all($coordsql);
+        // convert chunk to blocks
+        $min_x_block = $C[0]['min_x'] * 16;
+        $min_z_block = $C[0]['min_z'] * 16;
+        $max_x_block = $C[0]['max_x'] * 16;
+        $max_z_block = $C[0]['max_z'] * 16;
+
+        // find the one largest dimension
+        $max = max(array(abs($min_x_block), abs($max_x_block), abs($min_z_block), abs($max_z_block)));
+        // darklands data: -2669 	5284   -569 	6802
+
+        $left_map_middle = ($C[0]['min_x'] + $C[0]['max_x']) / 2;
+        $top_map_middle = ($C[0]['min_z'] + $C[0]['max_z']) / 2;
+
+        $left_offset = $C[0]['min_x'] + $left_map_middle;
+        $top_offset = $C[0]['min_z'] + $top_map_middle;
+
+        // format example 'city' => array('max_coord' => 1100, 'chunkborder' => 512, 'top_offset' => 450, 'left_offset' => -600),
+        $map = array('max_coord'=> $max, 'top_offset' => $top_offset, 'left_offset' => $left_offset);
+        XMPP_ERROR_trace("Map data", $map);
+    } else {
+        $map = $UMC_SETTING['world_img_dim'][$world];
+    }
+
+    $sql = "SELECT count(event_id) as counter, lag_events.chunk_id, world, x_coord, z_coord, AVG(tps) as tps_avg, min(tps) as min_tps
+        FROM minecraft_log.lag_events
+        LEFT JOIN minecraft_log.lag_chunks ON lag_chunks.chunk_id=lag_events.chunk_id
+        WHERE world='$world'
+        GROUP BY chunk_id
+        ORDER BY min_tps";
+    $L = umc_mysql_fetch_all($sql);
+
+    $valid_chunks = false;
+
+    foreach ($L as $l) {
+        $valid_chunks = true;
+        // convert chunks coordinates to block coordinates
+        $block_x = $l['x_coord'] * 16;
+        $block_z = $l['z_coord'] * 16;
+        // get average TPS for that chunk
+        $tps_avg = $l['tps_avg'];
+
+        $tps_gap = 20 - $tps_avg;
+        // this takes into account how often that one chunk is in the data
+        // I make a divisor dependend on the frequency of that chunk
+        // I multiply it by (frequency of that chunk)/max frequency
+        // assuming we have 14 datasets:
+        // so if that chunk was there only once, I get 1/14, if it was there all 14 times I get 14/14 = 1
+        $weighted_tps_gap = ($l['counter']/$max_events) * $tps_gap;
+
+        // calcualte opposite side block coordinates
+        if ($format == 'map') {
+            // convert block coordinates to image coordinates
+            $x1 = conv_x($block_x, $map);
+            $z1 = conv_z($block_z, $map);
+        }
+
+        // get lot information
+        $lot = umc_lot_get_from_coords($block_x, $block_z, $world);
+        $lot_owners = umc_get_lot_members($lot, true);
+        if ($lot_owners) {
+            $owner_string = implode(", ", $lot_owners);
+        } else {
+            $owner_string = 'empty';
+        }
+
+        $displayed_tps = (20 - $weighted_tps_gap);
+        $tps_nice = round($displayed_tps, 2);
+
+        if ($min_tps == $max_tps) { // we have only one dataset, avoid division by zero
+            $opacity = 1;
+        } else {
+            // formula for transposing one scale into another
+            // NewValue = (((OldValue - OldMin) * (NewMax - NewMin)) / (OldMax - OldMin)) + NewMin
+            // we substract from 1 to inverse the scale and make 1 the highest opacity
+            $opacity = round(1 - ((($displayed_tps - $min_tps) * (1 - 0.1))/ ($max_tps - $min_tps)) + 0.1, 3);
+        }
+        $fill_css = '';
+
+        if ($max_events == $l['counter']) {
+            $color = '0, 0, 255,'; // blue
+        } else {
+            if ($min_tps == $l['min_tps']) {
+                $color = '255, 0, 0,'; // red
+            } else {
+                $color = '255, 255, 0,'; // yellow
+            }
+        }
+
+        //if ($tps_nice < 20) {
+            if ($format == 'map') {
+                $out .= "
+                <div class=\"outerframe size16_16\" style=\"top:{$z1}px; left:{$x1}px; border: 1px solid rgba($color $opacity); $fill_css\">
+                    <span class=\"innertext\" style=\"opactiy:1;\">$block_x / $block_z: $lot ($owner_string) TPS: $tps_nice</span>
+                </div>";
+            }
+        //} else {
+        //    $valid_chunks = false;
+        //}
+    }
+
+    if (!$valid_chunks) {
+        $out = false;
+    }
+    return $out;
+}
+
+function umc_lagmap() {
+    global $UMC_SETTING, $UMC_ENV;
+
+    if (!isset($UMC_ENV)) {
+        $UMC_ENV = '2Dmap';
+    }
+
+    require_once($UMC_SETTING['path']['wordpress'] . '/wp-load.php');
+    umc_wp_get_vars();
+
+    $css_file = file_get_contents($UMC_SETTING['map_css_file']);
+    $css = "<style type=\"text/css\">
+        $css_file
+        .size16_16 {width:16px; height:16px; white-space:nowrap;}
+        </style>
+    ";
+
+    $worlds = array('city', 'empire', 'aether', 'flatlands', 'kingdom', 'draftlands', 'nether', 'darklands', 'the_end');
+
+    $s_post  = filter_input_array(INPUT_POST, FILTER_SANITIZE_STRING);
+    $s_get = filter_input_array(INPUT_GET, FILTER_SANITIZE_STRING);
+
+    if (isset($s_get['world'])) {
+        $world = $s_get['world'];
+        if (!in_array($world, $worlds)) {
+            die;
+        }
+    } else if (isset($s_post['world'])) {
+        $world = $s_post['world'];
+        if (!in_array($world, $worlds)) {
+            die;
+        }
+    } else {
+        $world = 'empire';
+    }
+
+
+    $menu = "<div id=\"menu_2d_map\">\n";
+    $menu .= umc_map_menu($worlds, $world, false, false) . "</div>";
+
+    $map_data = umc_lag_data($world, 'map');
+    if (!$map_data) {
+        $html = "<div><h1 style=\"color:white; padding:50px;\">No chunks with average tps below 19 found in $world!</h1>";
+    } else {
+        $html = '<div id="outer_box">' . "\n"
+            . '    <img src="/map/'. $world . '.jpg" id="image_box" alt="map">' . "\n";
+        $html .= $map_data;
+    }
+
+    $header = '<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+    <head>
+        <title>Uncovery Minecraft 2D Map: '. $world . '</title>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+        <script type="text/javascript" src="/admin/js/jquery-1.11.1.min.js"></script>
+        <script type="text/javascript" src="/admin/js/jquery-ui.min.js"></script>';
+
+
+    $out =  $header . $css . "</head>\n<body>\n" .  $menu . $html
+        . "</div>\n</body>\n</html>\n";
     // XMPP_ERROR_trigger("construction done");
     echo $out;
 }
@@ -479,12 +711,19 @@ function umc_assemble_maps() {
     XMPP_ERROR_trace(__FUNCTION__, func_get_args());
     global $UMC_SETTING;
     // create lots
+    //
     $worlds = $UMC_SETTING['world_data'];
-    // $worlds = array('empire'    => array('lot_size' => 128, 'lot_number' => 32));
-    // $worlds = array('kingdom'   => array('lot_size' => 272, 'lot_number' => 24));
-    // $worlds = array('draftlands' => array('lot_size' => 272, 'lot_number' => 16));
-    // $worlds = array('skyblock'  => array('lot_size' => 128, 'lot_number' => 20));
-    // $worlds = array('aether2' => array('lot_size' => 192, 'lot_number' => 16, 'prefix' => 'aet'));
+
+    // $worlds = array(
+    //    'empire'    => array('lot_size' => 128, 'lot_number' => 32, 'prefix' => 'emp',   'spawn' => 'emp_q17'),
+    //    'flatlands' => array('lot_size' => 128, 'lot_number' => 20, 'prefix' => 'flat',  'spawn' => 'flat_k11'),
+    //    'aether'    => array('lot_size' => 192, 'lot_number' => 16, 'prefix' => 'aet',   'spawn' => 'aet_h8'),
+    //    'kingdom'   => array('lot_size' => 272, 'lot_number' => 24, 'prefix' => 'king',  'spawn' => 'king_m12_b'),
+    //    'draftlands'=> array('lot_size' => 272, 'lot_number' => 24, 'prefix' => 'draft', 'spawn' => 'draft_m12_b'),
+    //    'skyblock'  => array('lot_size' => 128, 'lot_number' => 20, 'prefix' => 'block', 'spawn' => 'block_k11'),
+    //    'city'      => array('prefix' => 'city', 'spawn' => 'city_spawn')
+    // );
+
     $maxmin = array(
         'empire' => array('min_1' => -5, 'min_2' => -5, 'max_1' => 4, 'max_2' => 4),
         'flatlands' => array('min_1' => -3, 'min_2' => -3, 'max_1' => 4, 'max_2' => 4),
@@ -497,24 +736,33 @@ function umc_assemble_maps() {
         'darklands' => array('min_1' => -5, 'min_2' => -5, 'max_1' => 5, 'max_2' => 5),
     );
 
+    $destination = $UMC_SETTING['path']['server'] .  "/maps";
+    $mapper_folder = $UMC_SETTING['path']['server'] . '/togos_map';
+
+    // iterate the worlds first and delete old files
+    foreach ($worlds as $world => $dim) {
+        $del_cmd = "find $destination -name '*.png' -type f -delete";
+        exec($del_cmd);
+        XMPP_ERROR_trace(__FUNCTION__, "Deleted old files with command $del_cmd");
+    }
+
     foreach ($worlds as $world => $dim) {
         // make chunk files
         // clean up data files
         $folder = $UMC_SETTING['path']['bukkit'] . "/$world/region";
-        $mapper_folder = $UMC_SETTING['path']['server'] . '/togos_map';
-        $destination = $UMC_SETTING['path']['server'] .  "/maps";
+
         echo "$world: \n";
-        // create chunk maps   /// -biome-map $mapper_folder/biome-colors.txt -color-map $mapper_folder/block-colors.txt
-        $command = "java -jar $mapper_folder/TMCMR.jar $folder -create-big-image -region-limit-rect {$maxmin[$world]['min_1']} {$maxmin[$world]['min_2']} {$maxmin[$world]['max_1']} {$maxmin[$world]['max_2']} -o $destination/$world/png";
+        // -biome-map $mapper_folder/biome-colors.txt -color-map $mapper_folder/block-colors.txt
+        $coordinates = "-region-limit-rect {$maxmin[$world]['min_1']} {$maxmin[$world]['min_2']} {$maxmin[$world]['max_1']} {$maxmin[$world]['max_2']}";
+        $custom_color = "-color-map {$UMC_SETTING['path']['server']}/bin/assets/block-colors.txt";
+        $command = "java -jar $mapper_folder/TMCMR.jar $folder $custom_color -create-big-image $coordinates -o $destination/$world/png";
         exec($command);
-        echo "$world chunk maps rendered\n";
-        XMPP_ERROR_trace(__FUNCTION__, "$world chunk maps rendered");
+        XMPP_ERROR_trace(__FUNCTION__, "$world chunk maps rendered command $command");
 
         // compress map to new map
         $command1 = "convert $destination/$world/png/big.png -quality 60% $destination/{$world}_large.jpg";
         exec($command1);
-        echo "$world map compressed\n";
-        XMPP_ERROR_trace(__FUNCTION__, "$world map compressed");
+        XMPP_ERROR_trace(__FUNCTION__, "$world map compressed command $command1");
 
         $file_1 = "$destination/{$world}_large.jpg";
         $file_2 = "$destination/{$world}.jpg";
@@ -522,13 +770,10 @@ function umc_assemble_maps() {
         $border = $UMC_SETTING['world_img_dim'][$world]['chunkborder'];
         $command2 = "convert -crop '{$size}x{$size}+{$border}+{$border}' $file_1 $file_2";
         exec($command2);
-        XMPP_ERROR_trace(__FUNCTION__, "$world cropped map to border size {$size}x{$size}+{$border}+{$border}");
-        echo "$world cropped map to border size {$size}x{$size}+{$border}+{$border}\n";
+        XMPP_ERROR_trace(__FUNCTION__, "$world cropped map to border size with command $command2");
         // umc_assemble_tmc_map($world);
-        //echo ", Single file map assembled";
         // create lot maps
         umc_disassemble_map($world);
-        echo "$world Lot maps cut, done!\n";
         XMPP_ERROR_trace(__FUNCTION__, "$world Lot maps cut, done!");
 
         // umc_heatmap($world);
@@ -600,7 +845,7 @@ function umc_disassemble_map($world = 'empire') {
             $command = "convert -crop '{$size_x}x{$size_z}+{$base_x}+{$base_z}' \"$source/$world.jpg\" \"$source/lots/$world/{$lot}_full.png\"";
             // $command . "\n";
             exec($command);
-            XMPP_ERROR_trace(__FUNCTION__, "Cut lot $lot");
+            XMPP_ERROR_trace(__FUNCTION__, "Cut lot $lot with command $command");
         }
         XMPP_ERROR_trace(__FUNCTION__, "Done cutting the $world map to pieces");
     } else {
@@ -612,7 +857,7 @@ function umc_disassemble_map($world = 'empire') {
         $command = "convert \"$source/$world.jpg\" +repage -crop $lot_size". "x". "$lot_size +repage \"$source/lots/$world/$world.png\" ";
         // echo $command . "\n";
         exec($command);
-        XMPP_ERROR_trace(__FUNCTION__, "Done cutting the $world map to pieces");
+        XMPP_ERROR_trace(__FUNCTION__, "Done cutting the $world map to pieces with command $command");
 
         // rename the files
         $lot_array = array();
@@ -654,11 +899,10 @@ function umc_disassemble_map($world = 'empire') {
             // echo "renaming {$world}-$index.png -> $lot.png\n";
             if (file_exists("$source/lots/$world/{$world}-$index.png")) {
                 rename("$source/lots/$world/{$world}-$index.png", "$source/lots/$world/$lot.png");
-
+                XMPP_ERROR_trace(__FUNCTION__, "renamed files for lot $lot from {$world}-$index.png to $lot.png");
             } else {
-                echo "File $source/lots/$world/{$world}-$index.png not found \n";
+                XMPP_ERROR_trigger("File $source/lots/$world/{$world}-$index.png not found \n");
             }
-            XMPP_ERROR_trace(__FUNCTION__, "Cut lot $lot");
         }
         XMPP_ERROR_trace(__FUNCTION__, "Done renaming the $world pieces to lot names");
     }
@@ -749,8 +993,8 @@ function umc_region_data($world_name) {
     return $region_list;
 }
 
-function umc_map_menu($worlds, $current_world, $freeswitch) {
-    global $UMC_DOMAIN, $UMC_PATH_MC, $UMC_USER;
+function umc_map_menu($worlds, $current_world, $freeswitch, $showusers = true) {
+    global $UMC_DOMAIN, $UMC_USER;
     $freevalue = 'false';
     if ($freeswitch) {
         $freevalue = 'true';
@@ -762,11 +1006,13 @@ function umc_map_menu($worlds, $current_world, $freeswitch) {
         $title = "Uncovery $this_uc_map map";
     }
 
+    $function = filter_input(INPUT_GET, 'function', FILTER_SANITIZE_STRING); 
+
     $menu = "\n<!-- Menu -->\n<strong>$title</strong>\n <button type='button' onclick='find_spawn()'>Find Spawn</button>\n"
         . " <button type='button' onclick='toggleLotDisplay()'>Display mode</button>\n"
         . " Choose world:\n <form action=\"$UMC_DOMAIN/admin/\" method=\"get\" style=\"display:inline;\">\n    <div style=\"display:inline;\">"
         . "        <input type='hidden' name='freeonly' value='$freevalue'>\n"
-        . "        <input type='hidden' name='function' value='create_map'>\n"
+        . "        <input type='hidden' name='function' value='$function'>\n"
         . "        <select name=\"world\" style=\"display:inline;\" onchange='this.form.submit()'>\n";
     foreach ($worlds as $worldname) {
         $uc_worldname = ucwords($worldname);
@@ -779,23 +1025,9 @@ function umc_map_menu($worlds, $current_world, $freeswitch) {
     $menu .= "        </select>\n    </div></form>\n "
           . "<a id='link_3d_maps' href=\"$UMC_DOMAIN/dynmap/#\">3D Maps</a>\n ";
 
-    /* heatmap is disabled
-    if ($lag) {
-        $menu .= "<a href=\"$UMC_DOMAIN/admin/index.php?function=create_map&amp;world=$world\">Normal Map</a>\n | ";
-    } else {
-        $menu .= "<a href=\"$UMC_DOMAIN/admin/index.php?function=create_map&amp;world=$world&amp;lag=true\">Heatmap</a>\n | ";
+    if ($showusers) {
+        $menu .= umc_read_markers_file('scrollto', $current_world);
     }
-    */
-
-    $menu .= umc_read_markers_file('scrollto', $current_world);
-
-    // get file date
-    $image = "$UMC_PATH_MC/server/maps/$current_world.jpg";
-    $date_obj = $datetime = DateTime::createFromFormat('U', filemtime($image));
-    $date_diff = umc_timer_format_diff($date_obj);
-
-    $menu .= " <small>($current_world map image was updated $date_diff ago)</small>";
-
     return $menu;
 }
 

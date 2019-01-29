@@ -69,7 +69,7 @@ function umc_display_guestinfo(){
         $title = 'Welcome, stranger!';
         $content = "Please feel free to look around! In order to start building with us, please <a href=\"$UMC_DOMAIN/wp-login.php\">whitelist yourself</a>. "
             . "To know more about how to join us, please <a href=\"$UMC_DOMAIN/server-access/whitelist/\">continue here</a>.<br>"
-            . "If you are a member already, don\'t be a stranger and <a href=\"$UMC_DOMAIN/wp-login.php\">login</a>!<br><br>"
+            . "If you are a member already, don't be a stranger and <a href=\"$UMC_DOMAIN/wp-login.php\">login</a>!<br><br>"
             . 'If you want to see what awaits you inside, watch our trailer!<br>'
             . '<iframe width="550" height="315" src="//www.youtube.com/embed/RjfZaDpGCLA" allowfullscreen></iframe><br><br>';
     } else if ($userlevel == 'Guest') {
@@ -87,7 +87,7 @@ function umc_display_guestinfo(){
         }
         $votables =  umc_vote_get_votable($username, true);
 	// Teamspeak information
-        $content .= "<li><strong>Join us</strong> on <a href=\"$UMC_DOMAIN/communication/teamspeak/\">Teamspeak</a>!</li>";
+        $content .= "<li><strong>Join us</strong> on <a href=\"$UMC_DOMAIN/communication/discord/\">Discord</a>!</li>";
 	// Elder/Owner information
         if (strstr($userlevel, 'Elder') || $userlevel == 'Owner') { // elders only content
             $ban_arr = umc_get_recent_bans(3);
@@ -237,8 +237,6 @@ function umc_server_status() {
         global $UMC_USER;
         $out = "<img src=\"$UMC_DOMAIN/admin/img/online.png\" height=\"50\"><br>";
         if ($UMC_USER) {
-            $uuid = $UMC_USER['uuid'];
-            $username = strtolower($UMC_USER['username']);
             $date_new = umc_datetime();
             $now = $date_new->format('Y-m-d H:i');
 
@@ -284,7 +282,8 @@ function umc_server_status() {
  * @param array array('column' => 'function');
  * @return string
  */
-function umc_web_table($table_name, $sort_column, $data, $pre_table = '', $hide_cols = array(), $non_numeric_cols = false, $formats = false) {
+function umc_web_table($table_name, $sort_column, $data, $pre_table = '', $hide_cols = array(), $non_numeric_cols = false, $formats = false, $page_data = false) {
+    global $UMC_SETTING;
     $headers = '';
     if (!$non_numeric_cols) {
         // default numeric cols if nothing else defined
@@ -352,6 +351,53 @@ function umc_web_table($table_name, $sort_column, $data, $pre_table = '', $hide_
             $data_out
           </tbody>
         </table>";
+
+    if ($page_data) {
+
+        $num_records = $page_data['record_count'];
+        $page_url = $page_data['page_url'];
+
+        $current_page = $page_data['current_page'];
+        if (isset($page_data['page_length'])) {
+            $page_length = $page_data['page_length'];
+        } else {
+            $page_length = $UMC_SETTING['list_length'];
+        }
+        $page_count = round($num_records / $page_length);
+
+        $current_entry = $page_length * ($current_page - 1);
+        $last_entry = $current_entry + $page_length;
+
+        if ($num_records < $page_length) {
+            $out .= "$num_records entries found.";
+            return $out;
+        }
+
+        $out .= "$num_records entries, showing $current_entry-$last_entry. Select Page: ";
+
+        $jump = false;
+        for ($i=1; $i<=$page_count; $i++) {
+            // we show the first 3 pages, the last 3 pages
+            if (
+                ($i <= 3) || ($i > ($page_count - 3)) ||  // show first and last 3 pages
+                (($i < ($current_page + 2)) && ($i > ($current_page - 2))) // show the 3 pages around the current
+               ) {
+                if ($i == $current_page) {
+                    $out .= " $i ";
+                } else {
+                    $url = sprintf($page_url, $i);
+                    $out .= " <a href=\"{$url}\">$i</a> ";
+                }
+                $jump = false;
+            } else {
+                if (!$jump) {
+                    $out .= " ... ";
+                }
+                $jump = true;
+            }
+        }
+    }
+
     return $out;
 }
 
@@ -385,23 +431,35 @@ function umc_web_table_create_line($row, $numeric_columns, $formats, $hide_cols)
 
 // Column formatting
 function umc_web_table_format_column($name, $value) {
-    global $ENCH_ITEMS, $UMC_DOMAIN, $UMC_DATA, $UMC_DATA_ID2NAME;
+    global $UMC_DOMAIN, $UMC_DATA, $UMC_DATA_ID2NAME;
     XMPP_ERROR_trace(__FUNCTION__, func_get_args());
 
     $people_types = array('username', 'buyer', 'seller', 'sender', 'recipient');
     $uuid_types = array('vendor', 'requestor');
     if ($name == 'item_name') {
+        $type = 0;
+        $type_str = '';
         $id_parts = explode("|",$value);
-        $item_arr = umc_goods_get_text($id_parts[0], $id_parts[1], $id_parts[2]);
-        if (!$item_arr) {
-            XMPP_ERROR_send_msg("Could not identify $name $value for web table");
+        if (isset($id_parts[1])) {
+            $type = $id_parts[1];
+            $type_str = "&amp;type=$type";
         }
-        $type = "&amp;type={$id_parts[1]}";
-        $out = "<a href=\"?page=goods&amp;item={$id_parts[0]}$type\">" . $item_arr['full'] . "</a>\n";
+        $meta = '';
+        $meta_str = '';
+        if (isset($id_parts[2])) {
+            $meta = $id_parts[2];
+            $meta_str = "&amp;meta=$meta";
+        }
+        $item_arr = umc_goods_get_text($id_parts[0], $type, $meta);
+        if (!$item_arr) {
+            XMPP_ERROR_send_msg("Could not identify {$id_parts[0]}, $type, $meta (field $name) for web table");
+        }
+        $out = "<a href=\"?page=goods&amp;item={$id_parts[0]}$type_str$meta_str\">" . $item_arr['full'] . "</a>\n";
         return $out;
     } else if ($name == 'item') {
         $id_parts = explode("|",$value);
         if (is_numeric($id_parts[0]))  {
+            XMPP_ERROR_trigger('UMC_DATA_ID2NAME USAGE');
             $item_name = $UMC_DATA_ID2NAME[$id_parts[0]];
         } else {
             $item_name  = $id_parts[0];
@@ -415,7 +473,7 @@ function umc_web_table_format_column($name, $value) {
             $item_dmg = 0;
         }
 
-        if (isset($UMC_DATA[$item_name]['subtypes']) && $UMC_DATA[$item_name]['subtypes'][$item_dmg]['icon_url'] == '?') {
+        if (isset($UMC_DATA[$item_name]['subtypes'])) {
             $icon_dmg = 0;
         } else {
             $icon_dmg = $item_dmg;
@@ -430,11 +488,11 @@ function umc_web_table_format_column($name, $value) {
     } else if (in_array($name, $people_types)) {
         // if ($value == '')
         $icon_url = umc_user_get_icon_url($value);
-        return "<a href=\"?page=users&amp;user=$value\"><img title='$value' src='$icon_url' width=\"16\" alt=\"$value\">&nbsp;$value</a>";
+        return "<a href=\"https://uncovery.me/server-features/users-2/?u=$value\"><img title='$value' src='$icon_url' width=\"16\" alt=\"$value\">&nbsp;$value</a>";
     } else if (in_array($name, $uuid_types)) {
         $username = umc_user2uuid($value);
         $icon_url = umc_user_get_icon_url($username);
-        return "<a href=\"?page=users&amp;user=$username\"><img title='$username' src='$icon_url' width=\"16\" alt=\"$username\">&nbsp;$username</a>";
+        return "<a href=\"https://uncovery.me/server-features/users-2/?u=$username\"><img title='$username' src='$icon_url' width=\"16\" alt=\"$username\">&nbsp;$username</a>";
     } else if (preg_match("/price/i",$name)) {
         return number_format($value,2,".","");
     } else if ($name == 'quantity' && $value < 1) {
@@ -571,20 +629,19 @@ function umc_web_usercheck() {
     $tables = array(
         'Same IP' => 'last_ip',
         'Same Browser' => 'browser_id',
-        'Same TeamSpeak' => 'ts_uuid',
     );
     $out = '';
     foreach ($tables as $table_name => $crit_field) {
-        $sql = "SELECT $crit_field FROM minecraft_srvr.UUID WHERE $crit_field <> '' "
-                . "GROUP BY $crit_field HAVING count($crit_field) > 1 ORDER BY count($crit_field) DESC, onlinetime DESC";
+        $sql = "SELECT $crit_field FROM minecraft_srvr.UUID WHERE $crit_field <> ''
+               GROUP BY $crit_field HAVING count($crit_field) > 1 ORDER BY lastlogin DESC, count($crit_field) DESC";
 
         $L = umc_mysql_fetch_all($sql);
         $out_arr = array();
         foreach ($L as $l) {
-            $line_sql = "SELECT username, userlevel, lot_count, onlinetime, INET_NTOA(last_ip) as ip, "
-                . "CONCAT(browser_id, '<br>', ts_uuid) AS 'Browser & TS ID' "
-                . "FROM minecraft_srvr.UUID WHERE $crit_field = '{$l[$crit_field]}'"
-                . "ORDER BY onlinetime DESC";
+            $line_sql = "SELECT username, userlevel, lot_count, round(onlinetime / 24) as OnlineTime, DATE(lastlogin) as last_login, INET_NTOA(last_ip) as ip,
+                browser_id AS 'Browser ID'
+                FROM minecraft_srvr.UUID WHERE $crit_field = '{$l[$crit_field]}'
+                ORDER BY lastlogin DESC, last_ip DESC";
             $D = umc_mysql_fetch_all($line_sql);
             foreach ($D as $d) {
                 $out_arr[] = $d;
@@ -593,10 +650,10 @@ function umc_web_usercheck() {
         $out .= umc_web_table($table_name, 0, $out_arr, "<h2>$table_name</h2>");
     }
 
-    $sql_donations = 'SELECT id as d_id, amount, UUID.username, email, date as d_date, lastlogin, userlevel, lot_count '
+    $sql_donations = 'SELECT id as d_id, amount, UUID.username, email, date as d_date, DATE(lastlogin) as last_login, userlevel, lot_count '
         . 'FROM minecraft_srvr.donations '
         . 'LEFT JOIN minecraft_srvr.UUID on minecraft_srvr.donations.uuid=UUID.UUID '
-        . 'WHERE UUID.lastlogin < date ';
+        . 'WHERE UUID.lastlogin < date ORDER BY lastlogin DESC';
     $C = umc_mysql_fetch_all($sql_donations);
     $out .= umc_web_table('Late Donations', 0, $C, "<h2>Late Donations</h2>");
 
@@ -622,8 +679,6 @@ function umc_web_usercheck() {
         }
     }
     $out .= umc_web_table('Double accounts', 0, $out_data, "<h2>Double accounts</h2>");
-
-
     return $out;
 }
 

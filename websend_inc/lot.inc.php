@@ -75,6 +75,17 @@ $WS_INIT['lot'] = array(
             'level' => 'Owner',
          ),
     ),
+    'transfer' => array(
+        'help' => array(
+            'short' => 'Give a lot to someone. Removes old owners only.',
+            'args' => '<lot> transfer [user]',
+            'long' => 'Give a lot to someone. Removes old owners only.',
+        ),
+        'function' => 'umc_lot_addrem',
+        'security' => array(
+            'level' => 'Owner',
+         ),
+    ),    
     'mod' => array(
         'help' => array(
             'short' => 'Add/Remove yourself from a flatlands lot for emergency fixes',
@@ -108,7 +119,9 @@ $WS_INIT['lot'] = array(
 function umc_lot_mod() {
     global $UMC_USER;
     $player = $UMC_USER['username'];
+    $uuid = $UMC_USER['uuid'];
     $args = $UMC_USER['args'];
+    $userlevel = $UMC_USER['userlevel'];
 
     /// /lotmember lot world add target
 
@@ -126,7 +139,6 @@ function umc_lot_mod() {
     if (!$user_id) {
         umc_error("Your user id cannot be found!");
     }
-    $player_group = umc_get_userlevel($player);
 
     $world_id = umc_get_worldguard_id('world', $world);
     if (!$world_id) {
@@ -136,8 +148,8 @@ function umc_lot_mod() {
     if (!umc_check_lot_exists($world_id, $lot)) {
         umc_error("There is no lot $lot in world $world;");
     }
-    if ($player_group !== 'Owner' && $player_group !== 'Elder' && $player_group !== 'ElderDonator') {
-        umc_error("You are not Elder or Owner, you are $player_group!");
+    if ($userlevel !== 'Owner' && $userlevel !== 'Elder' && $userlevel !== 'ElderDonator') {
+        umc_error("You are not Elder or Owner, you are $userlevel!");
     }
 
     if ($addrem == 'add') {
@@ -167,7 +179,9 @@ function umc_lot_mod() {
 function umc_lot_addrem() {
     global $UMC_USER;
     $player = $UMC_USER['username'];
+    $uuid = $UMC_USER['uuid'];
     $args = $UMC_USER['args'];
+    $userlevel = $UMC_USER['userlevel'];
 
     /// /lotmember lot world add target
     if ((count($args) <= 3)) {
@@ -204,7 +218,6 @@ function umc_lot_addrem() {
     if (!$user_id) {
         umc_error("Your user id ($player) cannot be found!");
     }
-    $player_group = umc_get_userlevel($player);
 
     $world_id = umc_get_worldguard_id('world', $world);
     if (!$world_id) {
@@ -220,8 +233,8 @@ function umc_lot_addrem() {
     if ($action == 'snow' || $action == 'ice') {
         // check if the user has Donator status.
 
-        if ($player_group !== 'Owner') {
-            if (!stristr($player_group, 'Donator')) {
+        if ($userlevel !== 'Owner') {
+            if (!stristr($userlevel, 'Donator')) {
                 umc_error("You need to be Donator level to use the snow/ice features!;");
             }
             $owner_switch = 0;
@@ -265,7 +278,7 @@ function umc_lot_addrem() {
         umc_echo("done!");
         umc_log('lot', 'addrem', "$player changed $action property of $lot");
     } else {
-        if ($action == 'owner' || $action == 'give') {
+        if ($action == 'owner' || $action == 'give' || $action == 'transfer') {
             if ($player != 'uncovery' && $player != '@Console') {
                 umc_error("Nice try, $player. Think I am stupid? Want to get banned?");
             }
@@ -277,7 +290,7 @@ function umc_lot_addrem() {
             }
             $owner_switch = 0;
             // check if player is Owner of lot
-            if ($player_group !== 'Owner') {
+            if ($userlevel !== 'Owner') {
                 $sql = "SELECT * FROM minecraft_worldguard.region_players WHERE region_id='$lot' AND world_id=$world_id AND user_id=$user_id and Owner=1;";
                 $D3 = umc_mysql_fetch_all($sql);
                 $count = count($D3);
@@ -295,6 +308,7 @@ function umc_lot_addrem() {
 
         for ($i=4; $i<count($args); $i++) {
             $target = strtolower($args[$i]);
+            $target_uuid = umc_uuid_getone($target, 'uuid');
 
             // check if target player exists
             $target_id = umc_get_worldguard_id('user', strtolower($target));
@@ -302,7 +316,7 @@ function umc_lot_addrem() {
                 umc_error("The user $target does not exist in the database. Please check spelling of username");
             }
             if ($player != 'uncovery') {
-                $targ_group = umc_get_userlevel($target);
+                $targ_group = umc_userlevel_get($target_uuid);
                 if ($targ_group == 'Guest') {
                     umc_error("You cannnot add Guests to your lot!;");
                 } else if (!in_array($target, $active_users)) {
@@ -340,6 +354,20 @@ function umc_lot_addrem() {
                 umc_echo("Gave $lot to $target in the $world! All other user removed!");
                 // logfile entry
                 umc_log('lot', 'addrem', "$player gave lot to $target");
+            } else if ($addrem == 'transfer') {
+                // remove the target in case he's a member
+                umc_lot_rem_player($target, $lot, 0);
+                // get all current owners
+                $owners = umc_get_lot_members($lot, true);
+                // remove all current owners
+                foreach ($owners as $uuid => $username) {
+                    umc_lot_rem_player($uuid, $lot, 1);     
+                }
+                // add the new owner
+                umc_lot_add_player($target, $lot, 1);
+                umc_echo("Gave $lot to $target in the $world! Old Owners removed!");
+                // logfile entry
+                umc_log('lot', 'addrem', "$player gave lot to $target");             
             } else {
                 umc_show_help($args);
             }
@@ -407,6 +435,10 @@ function umc_lot_warp() {
     umc_footer();
 }
 
+/**
+ * wipe a user from all lots
+ * @param type $uuid
+ */
 function umc_lot_wipe_user($uuid) {
     XMPP_ERROR_trace(__FUNCTION__, func_get_args());
     // delete all dibs the user has

@@ -120,39 +120,37 @@ function umc_shopmgr_items() {
     $items = array();
     // get all data
     if (!isset($s_get['item']) || !isset($UMC_DATA[$s_get['item']])) {
-        foreach ($UMC_DATA as $name => $data) {
+        foreach ($UMC_DATA as $item_name => $data) {
             // $item = umc_goods_get_text($name);
             $variants = '';
-            $title = $name;
-            $sub_id = 0;
+            $title = $item_name;
             $sub_text = '';
             $sub_count = 0;
             if (isset($data['group'])) {
-                $variants = "(" . count($data['subtypes']) . " types)";
+                $variants = "(" . count($data['subtypes']) . " types)"; //TODO: This counts non-available subtypes as well!
                 $title = $data['group'];
                 $sub_count = count($data['subtypes']);
                 $sub_text = "$sub_count sub-types";
-                $sub_id = '?';
             }
             // get stock
-            $stock_amount = umc_shop_count_amounts('stock', $name);
-            $request_amount = umc_shop_count_amounts('request', $name);
+            $stock_amount = umc_shop_count_amounts('stock', $item_name);
+            $request_amount = umc_shop_count_amounts('request', $item_name);
 
-            if ($data['avail']) {
-                $items[$name] = array(
-                    'item_name' => "$name|$sub_id|",
-                    'sub_types'=> $sub_text,
-                    'stack_size' => $data['stack'],
-                    'stock' => $stock_amount,
-                    'requests' => $request_amount
-                );
-            }
+            $items[$item_name] = array(
+                'item_name' => $item_name,
+                'sub_types'=> $sub_text,
+                'stock' => $stock_amount,
+                'requests' => $request_amount,
+                'stack_size' => $data['stack'],
+            );
         }
         return umc_web_table("goods", "0, 'asc'", $items, '', array(), $non_numeric_cols);
     // get only one item's sub-items
     } else if (isset($s_get['item']) && isset($UMC_DATA[$s_get['item']])) {
         // get only one subitem
         $item_name = $s_get['item'];
+        // XMPP_ERROR_send_msg("{$s_get['item']} {$s_get['type']}");
+        // we have a specific item
         if (isset($s_get['type']) && (($s_get['type'] == '0') || (isset($UMC_DATA[$item_name]['subtypes'][$s_get['type']])))) {
             $item_type = $s_get['type'];
             $item = umc_goods_get_text($s_get['item'], $item_type);
@@ -163,13 +161,14 @@ function umc_shopmgr_items() {
                 . "<h2>Price history for " . $item['full'] . "</h2>"
                 . umc_shopmgr_item_stats($item_name, $item_type);
             return $out;
-        } else {
-        // we are looking for a specific item, so let's get it as a header
+        } else {  // we might have various items, list them
+
             if (!isset($s_get['type']) || ($s_get['type']==0 && !isset($UMC_DATA[$s_get['item']]['subtypes'][$s_get['type']]))) {
-                $item_type = 0;
+                $item_type = false;
             } else {
                 $item_type = $s_get['type'];
             }
+
 
             $stock_amount = umc_shop_count_amounts('stock', $item_name, $item_type);
             $request_amount = umc_shop_count_amounts('request', $item_name, $item_type);
@@ -177,11 +176,12 @@ function umc_shopmgr_items() {
             // stuff has sub items, display those
             if (isset($UMC_DATA[$item_name]['subtypes'])) {
                 foreach ($UMC_DATA[$item_name]['subtypes'] as $type => $data) {
-                    //if ($UMC_DATA[$s_get['item']]['subtypes'][$s_get['type']]['avail']) {
-                        $stock_amount = umc_shop_count_amounts('stock', $item_name, $type);
-                        $request_amount = umc_shop_count_amounts('request', $item_name, $type);
-                        $items[$type] = array('item_name' => "$item_name|$type|", 'stock' => $stock_amount, 'requests' => $request_amount);
-                    //}
+                    if (isset($data['avail']) && $data['avail'] == false) {
+                        continue;
+                    }
+                    $stock_amount = umc_shop_count_amounts('stock', $item_name, $type);
+                    $request_amount = umc_shop_count_amounts('request', $item_name, $type);
+                    $items[$type] = array('item_name' => "$item_name|$type|", 'stock' => $stock_amount, 'requests' => $request_amount);
                 }
             // no sub items, display data
             } else {
@@ -385,32 +385,27 @@ function umc_shopmgr_transactions() {
         $buyer_str = "buyer_uuid = '$uuid' AND";
     }
 
-    $lastmonth = date("Y-m-d", strtotime("-1 month"));
-
     // what did the user sell?
-    $out .= "<h2>Items sold by $username</h2>";
-    $sql = "SELECT CONCAT(item_name,'|', damage, '|', meta) AS item_name, cost AS income, amount, username AS buyer, date
-        FROM minecraft_iconomy.`transactions`
-        LEFT JOIN minecraft_srvr.UUID ON buyer_uuid=UUID
-        WHERE date > '$lastmonth' AND cost > 0 $seller_str
-        ORDER BY date DESC
-        LIMIT 100";
-
+    $out .= "<h2>Users Selling</h2>";
+    $sql = "SELECT username, count(id) as transactions, ROUND(SUM(cost)) as sum_costs, ROUND(SUM(amount)) as item_count, MAX(date) as latest_transaction
+        FROM minecraft_srvr.UUID
+        LEFT JOIN minecraft_iconomy.transactions ON UUID = transactions.seller_uuid
+        WHERE lot_count > 0 AND cost > 0 AND id IS NOT NULL
+        GROUP BY UUID";
     $D1 = umc_mysql_fetch_all($sql);
 
-    $sort_column = '4, "desc"';
+    $sort_column = '1, "DESC"';
     $out .= umc_web_table('shopusers_soldbyplayer', $sort_column, $D1);
 
-    $out .= "<h2>Items bought by $username</h2>";
-    $sql2 = "SELECT CONCAT(item_name,'|', damage, '|', meta) AS item_name, cost AS expense, amount, username AS seller, date
-        FROM minecraft_iconomy.`transactions`
-        LEFT JOIN minecraft_srvr.UUID ON seller_uuid=UUID
-        WHERE date > '$lastmonth' AND cost > 0 AND $buyer_str seller_uuid <> 'cancel00-sell-0000-0000-000000000000'
-        ORDER BY date DESC
-        LIMIT 100";
-    $D2 = umc_mysql_fetch_all($sql2);
+    $out .= "<h2>Users Buying</h2>";
+    $buyer_sql = "SELECT username, count(id) as transactions, ROUND(SUM(cost)) as sum_costs, ROUND(SUM(amount)) as item_count, MAX(date) as latest_transaction
+        FROM minecraft_srvr.UUID
+        LEFT JOIN minecraft_iconomy.transactions ON UUID = transactions.buyer_uuid
+        WHERE lot_count > 0 AND cost > 0 AND id IS NOT NULL AND seller_uuid <> 'cancel00-sell-0000-0000-000000000000'
+        GROUP BY UUID";
+    $D2 = umc_mysql_fetch_all($buyer_sql);
 
-    $sort_column2 = '4, "desc"';
+    $sort_column2 = '1, "DESC"';
     $check = umc_web_table('shopplayers_sellers', $sort_column2, $D2);
 
     if (!$check) {

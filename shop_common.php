@@ -147,7 +147,7 @@ function umc_get_meta_txt($meta_arr, $size = 'long') {
  * @param string $meta
  */
 function umc_goods_get_text($item_name_raw, $item_data = 0, $meta = '') {
-    global $UMC_DATA, $UMC_ENV, $UMC_PATH_MC, $UMC_DOMAIN, $UMC_DATA_ID2NAME;
+    global $UMC_DATA, $UMC_ENV, $UMC_DATA_ID2NAME;
     XMPP_ERROR_trace(__FUNCTION__, func_get_args());
 
     // check if we have "minecraft:" in the beginning.
@@ -161,10 +161,9 @@ function umc_goods_get_text($item_name_raw, $item_data = 0, $meta = '') {
 
     // just to deal with legacy item id
     if (is_numeric($item_name)) {
-        $item_name = $UMC_DATA_ID2NAME[$item_name];
-        // conversion failed, item does not exist
-        if (!$item_name) {
-            XMPP_ERROR_trigger("Could not identify $item_name from $item_data: DATA umc_goods_get_text");
+        if (isset($UMC_DATA_ID2NAME[$item_name])) {
+            $item_name = $UMC_DATA_ID2NAME[$item_name];
+        } else {
             return false;
         }
     }
@@ -172,17 +171,17 @@ function umc_goods_get_text($item_name_raw, $item_data = 0, $meta = '') {
     // if item name is not set at all
     if (!isset($UMC_DATA[$item_name])) {
         XMPP_ERROR_trigger("Could not identify $item_name as STRING umc_goods_get_text");
-        return false;
-    } else {
-        $item_arr = $UMC_DATA[$item_name];
-    }
+        $UMC_DATA[$item_name] = array('stack' => 64, 'avail' => true);
+    } 
+    $item_arr = $UMC_DATA[$item_name];
+
 
     // calculate the damage
     $damage_text = '';
     $damage_spacer = '';
     $mc_name = $item_name;
-    $icon_ext = strtolower(pathinfo($item_arr['icon_url'], PATHINFO_EXTENSION));
 
+    $damage = false;
     if (isset($item_arr['damage'])) {
         $damage = umc_goods_damage_calc($item_data, $item_arr['damage']);
         if ($damage) {
@@ -191,13 +190,9 @@ function umc_goods_get_text($item_name_raw, $item_data = 0, $meta = '') {
         }
     } else if (isset($item_arr['subtypes'][$item_data])) { // we might have a subtype
         $mc_name = $item_arr['subtypes'][$item_data]['name'];
-        $icon_ext = strtolower(pathinfo($item_arr['subtypes'][$item_data]['icon_url'], PATHINFO_EXTENSION));
     }
 
     $nice_name = umc_pretty_name($mc_name);
-
-    $icon_file = "icons/$mc_name.$icon_ext";
-    $icon_path = "$UMC_PATH_MC/server/bin/data/";
 
     $meta_text = '';
     $nbt_string = '';
@@ -215,12 +210,16 @@ function umc_goods_get_text($item_name_raw, $item_data = 0, $meta = '') {
         }
     }
 
-    $full_clean = trim("$nice_name$meta_text$nbt_string$damage_text");
-    if ($UMC_ENV == 'wordpress' && file_exists($icon_path . $icon_file)) {
-        if (isset($UMC_DATA[$item_name]['icon_coordinates'])) { // get background image of single image
+    $full_clean = trim("$nice_name$meta_text$nbt_string$damage_spacer$damage_text");
+    if ($UMC_ENV == 'wordpress') {
+        global $ITEM_SPRITES;
+        if (isset($ITEM_SPRITES[$item_name])) { // get background image of single image
+            if ($damage) {
+                $item_data = 'damaged';
+            }
             $img = umc_item_data_icon_html($item_name, $item_data) ;
         } else {
-            $img = "<img width=\"24\" src=\"$UMC_DOMAIN/websend/$icon_file\" alt=\"$nice_name\">";
+            $img = umc_item_data_icon_html('invalid', 'unknown') . "?";
         }
         $full = "$img $full_clean";
     } else if ($UMC_ENV == 'websend') {
@@ -246,7 +245,6 @@ function umc_goods_get_text($item_name_raw, $item_data = 0, $meta = '') {
     $out = array(
         'full' => $full,
         'full_nocolor' => "$nice_name$meta_spacer$meta_text$damage_spacer$damage_text",
-        'item_id' => $UMC_DATA[$item_name]['id'],
         'type' => $item_data,
         'full_clean' => $full_clean,
         'meta' => $meta_text,
@@ -309,12 +307,14 @@ function umc_shop_transaction_record($from, $to, $amount, $value, $item, $type =
 
     // make sure we have item names
     if (is_numeric($item)) {
+        XMPP_ERROR_trigger('UMC_DATA_ID2NAME USAGE');
         $item_name = $UMC_DATA_ID2NAME[$item];
     } else {
         $item_name = $item;
     }
 
+    $meta_sql = umc_mysql_real_escape_string($meta);
     $ins_sql = "INSERT INTO minecraft_iconomy.`transactions` (`damage`, `buyer_uuid`, `seller_uuid`, `item_name`, `cost`, `amount`, `meta`)
-        VALUES ('$type', '$to_uuid', '$from_uuid', '$item_name', '$value', '$amount', '$meta');";
+        VALUES ('$type', '$to_uuid', '$from_uuid', '$item_name', '$value', '$amount', $meta_sql);";
     umc_mysql_query($ins_sql, true);
 }

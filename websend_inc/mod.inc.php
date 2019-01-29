@@ -25,7 +25,10 @@ global $UMC_SETTING, $WS_INIT;
 
 $WS_INIT['mod'] = array(  // the name of the plugin
     'disabled' => false,
-    'events' => false,
+    'events' => array(
+        // we cannot read the ban file since we don't have JSON capability
+        // 'server_post_reboot' => 'umc_mod_ban_to_database',
+    ),
     'default' => array(
         'help' => array(
             'title' => 'Moderator Commands',  // give it a friendly title
@@ -99,7 +102,7 @@ $WS_INIT['mod'] = array(  // the name of the plugin
         ),
         'function' => 'umc_mod_error_message',
         'security' => array(
-           //'level' => 'Owner'
+           'level' => 'Elder'
         ),
     ),
     'whatsit' => array (
@@ -135,8 +138,18 @@ $WS_INIT['mod'] = array(  // the name of the plugin
             'level'=>'Owner',
          ),
     ),
+    'broadcast' => array(
+        'help' => array (
+            'short' => '',
+            'long' => "",
+            'args' => '',
+        ),
+        'function' => 'umc_mod_broadcast',
+        'security' => array(
+            'level'=>'Owner',
+        ),
+    ),
 );
-$WS_INIT['mod']['broadcast'] = 'broadcast';
 
 function umc_mod_error_message() {
     XMPP_ERROR_trace(__FUNCTION__, func_get_args());
@@ -144,20 +157,27 @@ function umc_mod_error_message() {
     // umc_exec_command($cmd, 'asConsole');
     $username = $UMC_USER['username'];
 
-    $thanks = umc_txt_color('Thanks for the test', 'red');
-    $thanks2 = umc_txt_format($thanks, array('bold'));
+    $data = array(
+        array('text'=>'Thanks for the test', 'format' => array('red', 'bold')),
+        array('text'=>'Uncovery', 'format' => array('green', 'underlined', 'normal', 'open_url'=>'http://uncovery.me')),
+        array('text'=>'received the message!', 'format' => array('red')),
+    );
+    umc_text_format($data, false, true);
 
-    $uncovery = umc_txt_color('Uncovery', 'green');
-    $uncovery2 = umc_txt_format($uncovery, array('underlined', 'normal'));
-    $uncovery3 = umc_txt_click($uncovery2, 'open_url', 'http://uncovery.me');
+    XMPP_ERROR_trigger('test');
 
-    $msg = umc_txt_color('received the message!', 'red');
-    $msg2 = umc_txt_format($msg, array('normal'));
-    $msg3 = umc_txt_hover($msg2, 'show_item', '{id:minecraft:stone,Damage:0,Count:1}');
-
-    umc_tellraw($username, array($thanks2, $uncovery3, $msg3), true);
-
-    XMPP_ERROR_trigger("User $username ran a mod test");
+    /*
+    if (isset($UMC_USER['inv'][0]['nbt']) && $UMC_USER['inv'][0]['nbt']) {
+        $inv = addslashes($UMC_USER['inv'][0]['nbt']);
+        $item_name = $UMC_USER['inv'][0]['item_name'];
+        $hover = '{id:minecraft:'.$item_name.',Damage:0,Count:1,tag:'.$inv.'}';
+        $msg4 = umc_txt_hover($item_name, 'show_item', $hover);
+        // $long_text = umc_nbt_display($inv, 'in_game');
+        umc_tellraw($username, array($msg4), true);
+    } else {
+        umc_tellraw($username, array("No NBT Data found!"), true);
+    }
+    */
 }
 
 /**
@@ -168,14 +188,14 @@ function umc_mod_error_message() {
  * @param type $msg
  */
 function umc_mod_broadcast($msg) {
-    global $WS_INIT;
-    $chat_command = $WS_INIT['mod']['broadcast'];
+    $chat_command = 'broadcast';
     // we can send several messages as an array.
     if (!is_array($msg)) {
         $msg = array($msg);
     }
     foreach ($msg as $line) {
-        $str = preg_replace(color_regex() . "e", 'color_map(\'$1\')', $line);
+        $str = preg_replace_callback(color_regex(), create_function('$matches', 'return color_map($matches[1]);'), $line);
+        // $str = preg_replace(color_regex() . "e", 'color_map(\'$1\')', $line);
         $full_command = "$chat_command $str;";
         umc_exec_command($full_command, 'asConsole');
     }
@@ -189,8 +209,7 @@ function umc_mod_broadcast($msg) {
  * @param type $message
  */
 function umc_mod_message($user, $message) {
-    $str = preg_replace(color_regex() . "e", 'color_map(\'$1\')', $message);
-    $cmd = "tellraw $user {\"text\":\"$str\",\"bold\":false}";
+    $cmd = "tellraw $user {\"text\":\"$message\",\"bold\":false}";
     umc_exec_command($cmd, 'asConsole');
 }
 
@@ -201,7 +220,7 @@ function umc_mod_banrequest() {
 
     if (!isset($args[2])) {
         umc_show_help($args);
-        die();
+        return;
     } else {
         $user = umc_check_user($args[2]);
         if (!$user) {
@@ -241,7 +260,7 @@ function umc_mod_ban() {
 
     if (!isset($args[2])) {
         umc_show_help($args);
-        die();
+        return;
     } else {
         $user = strtolower(umc_check_user($args[2]));
         if (!$user) {
@@ -277,6 +296,42 @@ function umc_mod_ban() {
     umc_footer(true);
     umc_user_ban($uuid, $reason);
     // trigger plugin-even userban
+}
+
+/*
+ * this function makes sure that all banned users from the text file
+ * are actually in the database
+ */
+function umc_mod_ban_to_database() {
+    XMPP_ERROR_trace(__FUNCTION__, func_get_args());
+    return;
+    global $UMC_SETTING;
+    $ban_file = json_decode(file($UMC_SETTING['banned_players_file']));
+    $banned_db = umc_banned_users();
+    foreach ($ban_file as $D) {
+        $uuid = $D['uuid'];
+        $name = strtolower($D['name']);
+        $date = $D['created'];
+        $source = $D['source'];
+        $reason = $D['reason'];
+        $admin = $D['admin'];
+        if (!in_array($uuid, $banned_db)) {
+            $sql = "INSERT INTO minecraft_srvr.`banned_users`(`username`, `reason`, `admin`, `date`, `uuid`, `source`)
+                VALUES ('$name','$reason', '$admin', '$date', '$uuid', '$source');";
+            umc_mysql_query($sql, true);
+        }
+    }
+    /* format:
+     *   {
+    "uuid": "18d29691-51f1-4166-b2cb-46cab2b9fba0",
+    "name": "iLoveMCPigs",
+    "created": "2013-12-20 11:00:54 +0800",
+    "source": "(Unknown)",
+    "expires": "forever",
+    "reason": "Banned by an operator."
+  },
+
+     */
 }
 
 
@@ -331,7 +386,7 @@ function umc_mod_mute() {
 
     if (!isset($args[2])) {
         umc_show_help($args);
-        die();
+        return;
     } else {
         $user = umc_check_user($args[2]);
         if (!$user) {
@@ -339,18 +394,22 @@ function umc_mod_mute() {
         }
     }
 
-    $time = $args[3];
+
     if (!isset($args[3])) {
         $time = '1h';
-    } else if (!isset($timelist[$time])) {
+    } else {
+        $time = $args[3];
+    }
+
+    if (!isset($timelist[$time])) {
         umc_error("You have to chose the time from this list: 1h 30m 15m 10m 5m 1m");
     }
 
     $seconds = $timelist[$time];
 
     $uuid = umc_user2uuid($user);
-    umc_ws_cmd("mute $user $time", 'asPlayer');
-    umc_ws_cmd("pex user $uuid timed add -herochat.* $seconds;", 'asConsole');
+    umc_ws_cmd("essentials:mute $user $time", 'asConsole');
+    umc_ws_cmd("pex user $uuid timed add -venturechat.* $seconds;", 'asConsole');
     umc_ws_cmd("pex user $uuid timed add -irc.* $seconds;", 'asConsole');
     umc_ws_cmd("pex user $uuid timed add -essentials.msg $seconds;", 'asConsole');
     umc_ws_cmd("pex user $uuid timed add -essentials.me $seconds;", 'asConsole');
@@ -377,7 +436,7 @@ function umc_mod_unmute() {
 
     if (!isset($args[2])) {
         umc_show_help($args);
-        die();
+        return;
     } else {
         $user = umc_check_user($args[2]);
         if (!$user) {
@@ -394,10 +453,10 @@ function umc_mod_unmute() {
     if (strstr($txt, $search)) {
     // YAML library is not installed,
     //$yml = yaml_parse_file($file);
-    //if ($yml['muted'] == 'true') {
+        //if ($yml['muted'] == 'true') {
         $uuid = umc_user2uuid($user);
-        umc_ws_cmd("mute $user", 'asPlayer');
-        umc_ws_cmd("pex user $uuid timed remove -herochat.*;", 'asConsole');
+        umc_ws_cmd("essentials:mute $user", 'asConsole');
+        umc_ws_cmd("pex user $uuid timed remove -venturechat.*;", 'asConsole');
         umc_ws_cmd("pex user $uuid timed remove -irc.*;", 'asConsole');
         umc_ws_cmd("pex user $uuid timed remove -essentials.msg;", 'asConsole');
         umc_ws_cmd("pex user $uuid timed remove -essentials.me;", 'asConsole');
@@ -501,7 +560,7 @@ function umc_mod_warp_lot() {
     $args = $UMC_USER['args'];
     if (!isset($args[2])) {
         umc_show_help($args);
-        die();
+        return;
     }
     $lot = strtolower($args[2]);
     $world = umc_get_lot_world($lot);

@@ -21,6 +21,15 @@ jQuery(document).ready(function(jQuery) {
     jQuery('.user-nickname-wrap,.user-display-name-wrap').css('display','none');
 });
 
+function WordCount(field, targetField) {
+    string = field.value;
+    str_array = string.split(" ");
+    wordcount = str_array.length;
+    jQuery('#' + targetField).text(wordcount);
+    return wordcount;
+}
+
+
 // this should be in the footer to work
 // currently unused
 /*

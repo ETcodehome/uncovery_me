@@ -21,22 +21,35 @@
  * This file manages the plugins in websend_inc, their help functions and events
  */
 
+function umc_plg_enum() {
+    XMPP_ERROR_trace(__FUNCTION__, func_get_args());
+    $folder = '/home/minecraft/server/bin/websend_inc';
+    $target = '/home/minecraft/server/bin/assets/plugins.inc.php';
+
+    $plugins = array();
+
+    $it = new FilesystemIterator($folder);
+    foreach ($it as $fileinfo) {
+        $filename = $fileinfo->getFilename();
+        if (substr($filename, -8)== '.inc.php') {
+            $plugins[] = $folder . "/" . $filename;
+        }
+    }
+    umc_array2file($plugins, 'PLUGIN_LIST', $target);
+}
+
 /**
+ * TODO: This list should be created automatically for a cache.
+ * The reading of the whole directory each time takes too much time.
  * handles the inclusion of all available plugins in the folder
  */
 function umc_plg_include() {
     XMPP_ERROR_trace(__FUNCTION__, func_get_args());
-    $folder = '/home/minecraft/server/bin/websend_inc';
-    $handle = opendir($folder);
-    if ($handle) {
-        while (false !== ($entry = readdir($handle))) {
-            $start = substr($entry, 0, 1);
-            $ext = substr($entry, -4);
-            if (($start != ".") && ($ext == '.php')) {
-                require_once($folder . "/" . $entry);
-            }
-        }
-        closedir($handle);
+    $plugin_listfile = '/home/minecraft/server/bin/assets/plugins.inc.php';
+    global $PLUGIN_LIST;
+    require_once($plugin_listfile);
+    foreach ($PLUGIN_LIST as $plugin) {
+        require_once($plugin);
     }
 }
 
@@ -87,6 +100,7 @@ function umc_wsplg_dispatch($module) {
     XMPP_ERROR_trace(__FUNCTION__, func_get_args());
     $admins = $UMC_SETTING['admins'];
     $player  = $UMC_USER['username'];
+    $userlevel = $UMC_USER['userlevel'];
 
     $command = umc_wsplg_find_command($module);
     if (!$command) {
@@ -114,7 +128,7 @@ function umc_wsplg_dispatch($module) {
 
             // restricts command to a minimum user level or higher
             if (isset($command['security']['level'])) {
-                if (!umc_rank_check(umc_get_userlevel($player),$command['security']['level'])) {
+                if (!umc_rank_check($userlevel, $command['security']['level'])) {
                     umc_error('{red}That command is restricted to user level {yellow}'.$command['security']['level'].'{red} or higher.');
                 }
             }
@@ -149,7 +163,7 @@ function umc_show_help($args = false) {
     XMPP_ERROR_trace(__FUNCTION__, func_get_args());
     global $UMC_USER, $WS_INIT;
     $player = $UMC_USER['username'];
-    $userlevel = umc_get_userlevel($player);
+    $userlevel = $UMC_USER['userlevel'];
 
     if ($args) { // if show_help is called from another program, we simulate a /help command being issued.
         $args = array_merge(array('call'), $UMC_USER['args']);
@@ -225,7 +239,10 @@ function umc_show_help($args = false) {
         }
     } else { // Show general help.
         foreach ($WS_INIT as $plugin => $cmd_data) {
-
+            // don't include plugins that are disabled in help.
+            if (isset($cmd_data['disabled']) && ($cmd_data['disabled'] === true)) {
+                continue;
+            }
             // This command is restricted to a user level or higher
             if (isset($cmd_data['default']['security']['level']) && $player != 'uncovery') {
                 if(!umc_rank_check($userlevel, $cmd_data['default']['security']['level'])) {
@@ -350,56 +367,29 @@ function umc_plugin_web_help($one_plugin = false) {
 function umc_plugin_eventhandler($event, $parameters = false) {
     XMPP_ERROR_trace(__FUNCTION__, func_get_args());
     global $WS_INIT;
-    // define list of available events for security, it's questionable if we need this list.
-    $available_events = array(
-        // server events
-        'server_pre_reboot',
-        'server_reboot',
-        'server_post_reboot',
-        // user events
-        'user_delete',
-        'user_banned',
-        'user_registered',
-        'user_inactive',
-        // websend events, do not have parameters usually since
-        // websend sends stuff via $UMC_USER
-        'PlayerPreLoginEvent',
-        'PlayerJoinEvent',
-        'PlayerQuitEvent',
-        'PlayerKickEvent',
-        'PlayerChangedWorldEvent',
-        'PlayerGameModeChangeEvent',
-        'PlayerPortalEvent',
-        'PlayerRespawnEvent',
-        'PlayerDeathEvent',
-        'EntityDeathEvent',
-        'AsyncPlayerPreLoginEvent',
-        // websend custom events
-        'ws_user_init_xp',
-    );
-    if (!in_array($event, $available_events)) {
-        XMPP_ERROR_trigger("received incoming event $event which is not available");
-        // return false;
-    }
+
     $return_vars = array();
-    foreach ($WS_INIT as $data) {
-        // check if there is a setting for the current event
-        if (($data['events'] != false) && (isset($data['events'][$event]))) {
+    foreach ($WS_INIT as $plugin => $data) {
+        // check if there is a setting for the current event and if the plugin is enabled
+        if (($data['events'] != false) && (isset($data['events'][$event])) && ($data['disabled'] == false)) {
+            // if ($UMC_USER['username'] == 'uncovery') {XMPP_ERROR_trace($event, $data);}
             // execute function
             $function = $data['events'][$event];
             if (!is_string($function) || !function_exists($function)) {
-                XMPP_ERROR_trigger("plugin eventhandler failed event $event because $function is not a valid function");
+                XMPP_ERROR_trigger("plugin $plugin eventhandler failed event $event because $function is not a valid function");
                 return false;
             }
             // execute the function, optionally with parameters
             if ($parameters) {
-                //$params_txt = implode(", ", $parameters);
-                //umc_log('plugin_handler', 'event_manager', "Plugin eventhandler executed event $event with function $function and parameters $parameters");
+                XMPP_ERROR_trace("Executing Plugin $plugin function $function with parameters:", $parameters);
                 $return_vars[] = $function($parameters);
             } else {
-                //umc_log('plugin_handler', 'event_manager', "Plugin eventhandler executed event $event");
+                XMPP_ERROR_trace("Executing Plugin $plugin function $function without parameters");
                 $return_vars[] = $function();
             }
+            // umc_log('plugin', $plugin, "Executing Event $event " . var_export($parameters, true));
+        } else {
+            // nothing done since plugin either does not have the current event or is disabled.
         }
     }
     return $return_vars;

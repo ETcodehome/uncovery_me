@@ -93,9 +93,7 @@ function umc_ws_eventhandler($event) {
 
     $player = $UMC_USER['username'];
 
-    // run plugin events
-    umc_plugin_eventhandler($event);
-
+    // if ($UMC_USER['username'] == 'uncovery') {XMPP_ERROR_send_msg("done with events");}
     // non-plugin events
     switch ($event) {
         case 'PlayerQuitEvent':
@@ -117,6 +115,9 @@ function umc_ws_eventhandler($event) {
             // all the events not covered above
             // XMPP_ERROR_send_msg("Event $event not assigned to action (umc_ws_eventhandler)");
     }
+
+    // run plugin events
+    umc_plugin_eventhandler($event);
 }
 
 /**
@@ -129,7 +130,7 @@ function umc_ws_eventhandler($event) {
  */
 function umc_ws_get_vars() {
     // make sure we are on websend
-    global $UMC_ENV, $UMC_USER; //, $UMC_USERS;
+    global $UMC_ENV, $UMC_USER, $UMC_USERS; //, $UMC_USERS;
     XMPP_ERROR_trace(__FUNCTION__, func_get_args());
     if ($UMC_ENV !== 'websend') {
         XMPP_ERROR_trigger("Tried to get websend vars, but environment did not match: " . var_export($UMC_ENV, true));
@@ -142,10 +143,13 @@ function umc_ws_get_vars() {
     if (!isset($json['Invoker']['Name'])) {
         XMPP_ERROR_trigger("No invoker name in " . var_export($json, true));
     }
+    // add json as array to USER
+    $UMC_USER['json_array'] = $json;
+   
     if ($json['Invoker']['Name'] == '@Console') {
         $UMC_USER['username'] = '@console';
         $UMC_USER['userlevel'] = 'Owner';
-        $UMC_USER['donator'] = 'Donator';
+        $UMC_USER['donator'] = true;
         $UMC_USER['uuid'] = 'Console0-0000-0000-0000-000000000000';
     } else {
         $UMC_USER['username'] = $json['Invoker']['Name'];
@@ -157,9 +161,8 @@ function umc_ws_get_vars() {
             $uuid = umc_user2uuid($json['Invoker']['Name']);
         }
 
-
         $UMC_USER['uuid'] = $uuid;
-        $UMC_USER['userlevel'] = umc_get_uuid_level($uuid);
+        $UMC_USER['userlevel'] = umc_userlevel_get($uuid);
         if (strstr($UMC_USER['userlevel'], 'Donator')) {
             $UMC_USER['donator'] = 'Donator';
         } else {
@@ -229,8 +232,11 @@ function umc_ws_get_vars() {
             }
         }
         $UMC_USER['online_players'] = $players;
+        $UMC_USERS[] = $players;
         $UMC_USER['player_data'] = $player_all_data;
     }
+
+    umc_plugin_eventhandler('any_websend');
     /*
     $current_user = new User();                         // create a user object
     $current_user->set_uuid($UMC_USER['uuid']);         // give it a uuid
@@ -333,13 +339,13 @@ function umc_ws_connect() {
     XMPP_ERROR_trace(__FUNCTION__, func_get_args());
     global $UMC_PATH_MC;
     require_once "$UMC_PATH_MC/server/bin/includes/websend_class.php";
-    $ws = new Websend("74.208.45.80"); //, 4445
+    $ws = new Websend("74.208.161.223"); //, 4445
     $password = file_get_contents("/home/includes/certificates/websend_code.txt");
     $ws->password = $password;
     if (!$ws->connect()) {
         // try again
         XMPP_ERROR_trace("websend Auth failed (attempt 1, trying again)", "none");
-        $ws = new Websend("74.208.45.80"); //, 4445
+        $ws = new Websend("74.208.161.223"); //, 4445
         $ws->password = $password;
         if (!$ws->connect()) { // fail agin? bail.
             XMPP_ERROR_trigger("Could not connect to websend server (umc_ws_connect)");
@@ -418,7 +424,7 @@ function umc_ws_cmd($cmd_raw, $how = 'asConsole', $player = false, $silent = fal
  * @return type
  */
 function umc_ws_get_inv($inv_data) {
-    global $UMC_DATA_SPIGOT2ITEM, $UMC_DATA, $UMC_DATA_ID2NAME;
+    global $UMC_DATA;
     // XMPP_ERROR_trace(__FUNCTION__, func_get_args());
     $inv = array();
     foreach($inv_data as $item) {
@@ -426,40 +432,22 @@ function umc_ws_get_inv($inv_data) {
         $inv[$slot] = array();
         $inv[$slot]['meta'] = false;
         $inv[$slot]['nbt'] = false;
+        $inv[$slot]['data'] = 0;
         foreach ($item as $name => $value) {
             $fix_name = strtolower($name);
             if ($fix_name == 'typename') {
                 $item_typename = strtolower($item['TypeName']);
-                if (isset($UMC_DATA_SPIGOT2ITEM[$item_typename])) {
-                    $inv[$slot]['item_name'] = $UMC_DATA_SPIGOT2ITEM[$item_typename];
-                } else if (isset($UMC_DATA[$item_typename])) {
+                if (isset($UMC_DATA[$item_typename])) {
                     $inv[$slot]['item_name'] = $item_typename;
                 } else {
-                    $inv[$slot]['item_name'] = $UMC_DATA_ID2NAME[$item['TypeName']];
-                    $out = "ITEM ISSUE! Please add: '$item_typename' => '{$inv[$slot]['item_name']}', to the \$UMC_DATA_SPIGOT2ITEM array";
+                    $out = "UMC_DATA_ID2NAME USAGE: ITEM ISSUE! Please add: '$item_typename' to the \$UMC_DATA array";
                     XMPP_ERROR_send_msg($out);
+                    $inv[$slot]['item_name'] = $item_typename;
                 }
             } else if ($fix_name == "type") {
                 $inv[$slot]['id'] = $item['Type'];
             } else if ($fix_name == 'durability') {
-                $name = 'data';
-                if ($value == -1) { // case 1) saplings of dark oak harvested from minecart maniah have a -1 data
-                    // umc_clear_inv($data['item_name'], $data['data'], $data['amount']);
-                    umc_echo("{red}You had a bugged item in your inventory, it had to be removed!");
-                    XMPP_ERROR_trigger("Invalid item with -1 damage found!");
-                } else {
-                    $inv[$slot][$name] = $value;
-                }
-            } else if ($fix_name == 'meta' && (!isset($item['nbt']))) {
-                foreach ($value as $meta_type => $meta_value) {
-                    // enchantments
-                    if ($meta_type == 'Enchantments' || $meta_type == 'EnchantmentStorage') {
-                        foreach ($meta_value as $ench_data) {
-                            $e_name = $ench_data['Name'];
-                            $inv[$slot]['meta'][$e_name] = $ench_data['Level'];
-                        }
-                    }
-                }
+                $inv[$slot]['data'] = $value;
             } else if ($fix_name == 'nbt') {
                 // convert spigot NBT to minecraft NBT
                 $nbt = umc_nbt_cleanup($value);
@@ -668,7 +656,9 @@ function umc_text_format($data, $target = false, $auto_space = false) {
                             $nbt_safe = addslashes($variable['nbt']);
                             $nbt = ",tag:$nbt_safe";
                         }
-                        $extras = "{id:minecraft:{$variable['item_name']},Damage:{$variable['damage']},Count:1$nbt}";
+                        $extras = "{id:{$variable['item_name']},Damage:{$variable['damage']},Count:1$nbt}";
+                        // I added minecraft: before the item name but had to remove it since it broke the mouseover
+                        // I am not sure why it was added.
                     } else {
                         $extras = $variable;
                     }
@@ -692,7 +682,7 @@ function umc_text_format($data, $target = false, $auto_space = false) {
  * @param type $msg_arr
  * @param type $spacer
  */
-function umc_tellraw($selector, $msg_arr, $spacer = false) {
+function umc_tellraw($selector, $msg_arr, $spacer = false, $debug = false) {
     XMPP_ERROR_trace(__FUNCTION__, func_get_args());
     global $UMC_USER;
     $valid_selectors = array(
@@ -786,14 +776,23 @@ function umc_ws_give($user, $item_name, $amount, $damage = 0, $meta = '') {
 
     $stack_size = $UMC_DATA[$item_name]['stack'];
 
+    if ($damage < 0) {
+        $damage = 0;
+    }
+
+    // we cannot give one user more than one stack at a time with this command
+    // so let's give full stacks until we need to give less than one stack.
     while ($amount > $stack_size) {
-        $cmd = "minecraft:give $user $item_name $stack_size $damage $meta_cmd;";
+        $cmd = "minecraft:give $user $item_name$meta_cmd $stack_size;";
         $check = umc_ws_command('asConsole', $cmd);
         $amount = $amount - $stack_size;
+        umc_log('inventory', 'give', "gave $stack_size of $item_name (command: minecraft:give $stack_size) to $user");
     }
-    $cmd = "minecraft:give $user $item_name $amount $damage $meta_cmd;";
+    // give the leftover amount
+    $cmd = "minecraft:give $user $item_name$meta_cmd $amount;";
+    umc_log('inventory', 'give', "gave $amount of $item_name (command: minecraft:give $cmd) to $user");
     $check = umc_ws_command('asConsole', $cmd);
-    return $check;
+    return $check;    
 }
 
 

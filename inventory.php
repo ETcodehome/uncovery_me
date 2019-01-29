@@ -71,13 +71,13 @@ function umc_check_inventory($item_name, $data, $meta) {
 /**
  * Remove $amount of an item from the logged-in player's inventory
  *
- * @param type $id
+ * @param type $item_name
  * @param type $data
  * @param type $amount
  * @param type $meta
  * @return boolean
  */
-function umc_clear_inv($id, $data, $amount, $meta = '') {
+function umc_clear_inv($item_name, $data, $amount, $meta = '') {
     XMPP_ERROR_trace(__FUNCTION__, func_get_args());
     // umc_echo("trying to remove id $id, data $data, amount $amount, Enchantment $meta");
     global $UMC_USER;
@@ -93,6 +93,7 @@ function umc_clear_inv($id, $data, $amount, $meta = '') {
     }
 
     $removed = 0;
+    $clearslots = array();
     foreach ($inv as $slot => $item) {
         $comparator = 'meta';
         if (!is_array($meta) && strpos($meta, "{") === 0) {
@@ -104,13 +105,14 @@ function umc_clear_inv($id, $data, $amount, $meta = '') {
             $item['meta'] = serialize(false);
         }
         // echo "$slot:{$item['id']}:{$item['data']}:{$item['meta']} vs $meta";
-        if (($item['item_name'] == $id) && ($item['data'] == $data) && ($item[$comparator] == $meta)) {
+        if (($item['item_name'] == $item_name) && ($item['data'] == $data) && ($item[$comparator] == $meta)) {
             if ($amount >= $item['amount']) {
-                umc_ws_cmd("removeitem $player $slot", 'asConsole');
-                XMPP_ERROR_trace('item removed', "removeitem $player $slot");
+                // we only prepare the list of to be cleared slots to remove them later with "removeitems"
+                $clearslots[] = $slot;
                 $amount = $amount - $item['amount'];
                 $removed = $removed + $item['amount'];
             } else {
+                // single items are cleared right now with "removeitem"
                 umc_ws_cmd("removeitem $player $slot $amount", 'asConsole');
                 $amount = $amount - $amount;
                 $removed = $amount;
@@ -120,6 +122,10 @@ function umc_clear_inv($id, $data, $amount, $meta = '') {
             }
         }
     }
+    if (count($clearslots) > 0) {
+        umc_ws_cmd("removeitems $player " . implode(" ", $clearslots), 'asConsole');
+    }
+    
     if ($amount != $removed && $amount > 0) {
         XMPP_ERROR_trigger("Could not remove item $id:$data in amount $amount (" . var_export($meta, true) . ") from user $player!");
     }
@@ -138,6 +144,7 @@ function umc_check_space($amount, $item_name, $type) {
     $inv = $UMC_USER['inv'];
 
     if (is_numeric($item_name)) {
+        XMPP_ERROR_trigger('UMC_DATA_ID2NAME USAGE');
         $item_name = $UMC_DATA_ID2NAME[$item_name];
     }
 
@@ -186,9 +193,12 @@ function umc_check_space_multiple($items) {
     $overall_need = 0;
     foreach ($items as $data) {
         $amount = $data['amount'];
+        $nbt = $data['nbt'];
         $item_name = $data['item_name'];
         if (!isset($UMC_DATA[$item_name]['stack'])) {
-            XMPP_ERROR_trigger("umc_check_space_multiple error with item {$data['item_name']}, could not find item in UMC_DATA array:" . var_export($data, true));
+            $msg = "umc_check_space_multiple error with item $item_name / $nbt, could not find item in UMC_DATA array:" . var_export($items, true);
+            XMPP_ERROR_send_msg($msg);
+            XMPP_ERROR_trigger($msg);
             umc_error("There was an error calculating your free space. The admin has been informed. Process stopped.");
         }
         $need_slots = ceil($amount / $UMC_DATA[$item_name]['stack']);
@@ -308,10 +318,10 @@ function umc_checkout_goods($id, $amount, $table = 'stock', $cancel = false, $to
             umc_check_space($sellamount, $item['item_name'], $item['type']);
             // the in-game command does not understand item_names yet
             umc_ws_give($player, $item['item_name'], $sellamount, $item['type'], $row['meta']);
-            umc_log('inventory', 'give', "$player received {$item['full_clean']} $sellamount");
+            umc_log('inventory', 'give', "$player received $sellamount {$item['full_clean']}");
         } else {
             umc_deposit_give_item($target, $item['item_name'], $item['type'], $row['meta'], $sellamount, $source);
-            umc_log('inventory', 'give_deposit', "$player recived in deposit {$item['full_clean']} $sellamount");
+            umc_log('inventory', 'give_deposit', "$player received $sellamount {$item['full_clean']} in deposit");
         }
 
         // check status

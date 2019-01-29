@@ -37,7 +37,7 @@ function umc_wp_get_vars() {
     if (!isset($user_login) || ($user_login == '') || ($user_email == '')) {
         $UMC_USER = false;
     } else {
-        if (!function_exists('umc_get_uuid_level')) {
+        if (!function_exists('umc_userlevel_get')) {
             XMPP_ERROR_send_msg("Could not get uuid_level, Env = $UMC_ENV");
             require_once('/home/minecraft/server/bin/core_include.php');
         }
@@ -57,7 +57,7 @@ function umc_wp_get_vars() {
             $UMC_USER['email'] = $user_email;
             $UMC_USER['username'] = umc_uuid_getone($uuid, 'username');
             $UMC_USER['uuid'] = $uuid;
-            $UMC_USER['userlevel'] = umc_get_uuid_level($uuid);
+            $UMC_USER['userlevel'] = umc_userlevel_get($uuid);
             if (strstr($UMC_USER['userlevel'], 'Donator')) {
                 $UMC_USER['donator'] = 'Donator';
             } else {
@@ -70,10 +70,12 @@ function umc_wp_get_vars() {
             $UMC_USER['uuid'] = false;
             $UMC_USER['userlevel'] = 'Guest';
         }
+        umc_plugin_eventhandler('any_wordpress');
     }
     //$UMC_USERS[$uuid] = new UMC_User($uuid);
     //$UMC_USERS[$uuid]->set_username($username);
     //$UMC_USERS[$uuid]->set_userlevel($userlevel);
+
 }
 
 /**
@@ -109,7 +111,7 @@ function umc_wp_fix_uuid_meta($user_login){
 }
 
 /**
- * Get a wp user ID from the UUID
+ * Get a wp username (login name) from the UUID
  * This NEEDS to be the user_login, not display_name,
  *
  * @param string $uuid
@@ -133,6 +135,78 @@ function umc_wp_get_login_from_uuid($uuid) {
     }
     return $out;
 }
+
+/**
+ * Get a wp ID (nmumeric) from the UUID
+ * This NEEDS to be the user_login, not display_name,
+ *
+ * @param string $uuid
+ * @return string
+ */
+function umc_wp_get_id_from_uuid($uuid) {
+    XMPP_ERROR_trace(__FUNCTION__, func_get_args());
+    global $UMC_USER, $UMC_ENV;
+    $current_uuid = $UMC_USER['uuid'];
+    if (($UMC_ENV == 'wordpress') && ($uuid == $current_uuid)) {
+        $out = get_current_user_id();
+    } else {
+        $uuid_sql = umc_mysql_real_escape_string($uuid);
+        $sql = "SELECT ID FROM minecraft.wp_users
+            LEFT JOIN minecraft.wp_usermeta ON ID=user_id
+            WHERE meta_value=$uuid_sql AND meta_key ='minecraft_uuid'
+	    LIMIT 1;";
+        $data = umc_mysql_fetch_all($sql);
+        $out = $data[0]['ID'];
+    }
+    return $out;
+}
+
+
+/**
+ * Checks for a specific user to exist in wordpress
+ * Can take user_login, display_name or UUID
+ *
+ * TODO merge/replace with above function
+ *
+ * returns the wordpress ID
+ *
+ * This will replace the below umc_check_user
+ *
+ * @param type $display_name
+ */
+function umc_user_get_wordpress_id($query) {
+    XMPP_ERROR_trace(__FUNCTION__, func_get_args());
+    if (strlen($query) < 2) {
+        return false;
+    }
+    $username_quoted = umc_mysql_real_escape_string($query);
+    // UUID
+    if (strlen($query) > 17) {
+        $uuid = true;
+        $sql = "SELECT user_id as ID FROM minecraft.wp_usermeta
+            WHERE meta_value LIKE $username_quoted;";
+        $D = umc_mysql_fetch_all($sql);
+    } else {
+        // Username
+        $uuid = false;
+        $sql = "SELECT ID FROM minecraft.wp_users
+            WHERE user_login LIKE $username_quoted;";
+        $D = umc_mysql_fetch_all($sql);
+        if (count($D) == 0) { // we might have the display_name, not the login
+            $sql = "SELECT ID FROM minecraft.wp_users
+                WHERE display_name LIKE $username_quoted;";
+            $D = umc_mysql_fetch_all($sql);
+        }
+    }
+
+    if (count($D) == 0) {
+        return false;
+    } else {
+        return $D[0]['ID'];
+    }
+}
+
+
 
 /**
  * Get a wp user ID from the UUID

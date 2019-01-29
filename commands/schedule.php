@@ -1,21 +1,23 @@
 <?php
-echo "Running schedule...\n";
-
 include('/home/minecraft/server/bin/index_wp.php');
+
+XMPP_ERROR_trace("Running schedule.php");
 
 umc_log('system', 'daily_process', "post-reboot processes started");
 
-umc_plugin_eventhandler('server_post_reboot');
+// make a new ID file in case item data has changed
+umc_item_search_create();
 
 run_umc_scheduler();
+
+umc_plugin_eventhandler('server_post_reboot');
 
 echo "Done!\n";
 
 function run_umc_scheduler() {
     XMPP_ERROR_trace(__FUNCTION__, func_get_args());
     // list of what to do & undo or temp permissions
-    global $WS_INIT;
-    $chat_command = $WS_INIT['mod']['broadcast'];
+    $chat_command = 'broadcast';
 
     $schedule_arr = array(
         1 => array( // Monday
@@ -112,7 +114,7 @@ function run_umc_scheduler() {
     $default_commands = array(
         "mv gamerule doDaylightCycle false darklands",
         "time set 00:00 darklands",
-        "mv gamerule naturalRegeneration false deathlands",
+        "mv gamerule naturalRegeneration false deathlands", //TODO: move this to an event in the hardcore plugin
     );
     umc_schedule_exec($default_commands);
 
@@ -121,13 +123,9 @@ function run_umc_scheduler() {
 
     // execute todays on-commands
     $cmds = $schedule_arr[$today]['on_cmd'];
-    umc_log('scheduler', "today", "executing commands for yesterday: $today");
+    umc_log('scheduler', "today", "executing commands for today: $today");
 
     umc_schedule_exec($cmds);
-
-    umc_ban_to_database();
-    // make a new ID file in case item data has changed
-    include_once('/home/minecraft/server/bin/commands/make_id_file.php');
 }
 
 function umc_schedule_exec($cmds) {

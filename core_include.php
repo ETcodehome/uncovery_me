@@ -25,8 +25,9 @@
 /* UMC_FUNCTIONS: This is a list of functions that are called directly from the website, outside of Wordpress
  * The list needs to be maintained so that the function can actually be called. See index_wp for the mechanism.
  */
-global $UMC_USERS, $WS_INIT, $UMC_USER, $UMC_SETTING, $UMC_ITEMS, $UMC_DATA, $UMC_DATA_SPIGOT2ITEM, $UMC_DATA_ID2NAME;
+global $UMC_USERS, $WS_INIT, $UMC_USER, $UMC_SETTING, $UMC_ITEMS, $UMC_DATA, $UMC_DATA_ID2NAME;
 global $UMC_ENV, $ITEM_SEARCH, $ENCH_ITEMS, $UMC_DOMAIN, $UMC_PATH_MC, $UMC_FUNCTIONS, $UMC_PATTERNS, $UMC_COLORS_DEC;
+global $ITEM_SPRITES, $UMC_DATA_ITEM2WIKI;
 
 $UMC_PATH_MC = "/home/minecraft";
 
@@ -35,12 +36,15 @@ global $XMPP_ERROR;
 require_once('/home/includes/xmpp_error/xmpp_error.php');
 $XMPP_ERROR['config']['project_name'] = 'Uncovery.me';
 $XMPP_ERROR['config']['enabled'] = true;
+$XMPP_ERROR['config']['track_globals'][] = 'UMC_USERS';
+
+$UMC_USERS = array();
 
 // include database abstraction
 global $UNC_DB;
 $UNC_DB = array('database' => 'minecraft', 'username' => 'minecraft', 'server' => 'localhost', 'password' => '9sd6ncC9vEcTD55Z');
 // legacy since we did not merge completely
-mysql_connect($UNC_DB['server'], $UNC_DB['username'], $UNC_DB['password']);
+// umc_mysql_connect($UNC_DB['server'], $UNC_DB['username'], $UNC_DB['password']);
 require_once('/home/includes/uncovery_mysql/uncovery_mysql.inc.php');
 
 // include serial_curl
@@ -48,35 +52,42 @@ require_once('/home/includes/unc_serial_curl/unc_serial_curl.php');
 
 // include everything else
 // require_once($UMC_PATH_MC . '/server/bin/classes/users.class.php');
-require_once($UMC_PATH_MC . '/server/bin/includes/config.inc.php');
-require_once($UMC_PATH_MC . '/server/bin/includes/uuid.inc.php');
+
 require_once($UMC_PATH_MC . '/server/bin/users.php');
 require_once($UMC_PATH_MC . '/server/bin/map.php');
 require_once($UMC_PATH_MC . '/server/bin/web.php');
 require_once($UMC_PATH_MC . '/server/bin/contests.php');
 require_once($UMC_PATH_MC . '/server/bin/shop_common.php');
-require_once($UMC_PATH_MC . '/server/bin/donation.php');
 require_once($UMC_PATH_MC . '/server/bin/lot_manager.php');
-require_once($UMC_PATH_MC . '/server/bin/includes/websend.inc.php');
-require_once($UMC_PATH_MC . '/server/bin/includes/wordpress.inc.php');
+
+require_once($UMC_PATH_MC . '/server/bin/shop_manager.php');
 require_once($UMC_PATH_MC . '/server/bin/plugin.php');
 require_once($UMC_PATH_MC . '/server/bin/inventory.php');
 require_once($UMC_PATH_MC . '/server/bin/settler_test.php');
-require_once($UMC_PATH_MC . '/server/bin/includes/colors.inc.php');
-require_once($UMC_PATH_MC . '/server/bin/includes/patterns.inc.php');
-require_once($UMC_PATH_MC . '/server/bin/includes/log.inc.php');
-require_once($UMC_PATH_MC . '/server/bin/includes/timer.inc.php');
-require_once($UMC_PATH_MC . '/server/bin/includes/item_data.inc.php');
-require_once($UMC_PATH_MC . '/server/bin/includes/enchantments.inc.php');
-require_once($UMC_PATH_MC . '/server/bin/includes/nbt.inc.php');
-require_once($UMC_PATH_MC . '/server/bin/includes/potions.inc.php');
-require_once($UMC_PATH_MC . '/server/bin/includes/item_search.inc.php');
-require_once($UMC_PATH_MC . '/server/bin/includes/item_id2name.inc.php');
-require_once($UMC_PATH_MC . '/server/bin/shop_manager.php');
+
+require_once($UMC_PATH_MC . '/server/bin/assets/colors.inc.php');
+require_once($UMC_PATH_MC . '/server/bin/assets/enchantments.inc.php');
+require_once($UMC_PATH_MC . '/server/bin/assets/item_data.inc.php');
+require_once($UMC_PATH_MC . '/server/bin/assets/item_id2name.inc.php');
+require_once($UMC_PATH_MC . '/server/bin/assets/item_search.inc.php');
+require_once($UMC_PATH_MC . '/server/bin/assets/item_sprites.inc.php');
+require_once($UMC_PATH_MC . '/server/bin/assets/item_details.inc.php');
+require_once($UMC_PATH_MC . '/server/bin/assets/item_item2wiki.inc.php');
+require_once($UMC_PATH_MC . '/server/bin/assets/patterns.inc.php');
+require_once($UMC_PATH_MC . '/server/bin/assets/potions.inc.php');
+require_once($UMC_PATH_MC . '/server/bin/assets/spawn_egg.inc.php');
+
 require_once($UMC_PATH_MC . '/server/bin/includes/array2file.inc.php');
-require_once($UMC_PATH_MC . '/server/bin/includes/usericons.inc.php');
-require_once($UMC_PATH_MC . '/server/bin/includes/github.inc.php');
+require_once($UMC_PATH_MC . '/server/bin/includes/config.inc.php');
 require_once($UMC_PATH_MC . '/server/bin/includes/faq.inc.php');
+require_once($UMC_PATH_MC . '/server/bin/includes/github.inc.php');
+require_once($UMC_PATH_MC . '/server/bin/includes/log.inc.php');
+require_once($UMC_PATH_MC . '/server/bin/includes/nbt.inc.php');
+require_once($UMC_PATH_MC . '/server/bin/includes/timer.inc.php');
+require_once($UMC_PATH_MC . '/server/bin/includes/usericons.inc.php');
+require_once($UMC_PATH_MC . '/server/bin/includes/websend.inc.php');
+require_once($UMC_PATH_MC . '/server/bin/includes/wordpress.inc.php');
+require_once($UMC_PATH_MC . '/server/bin/includes/uuid.inc.php');
 
 // include all websend plugins
 umc_plg_include();

@@ -48,7 +48,11 @@ function umc_uuid_record_usertimes($type) {
             $login = umc_datetime($D['lastlogin']);
             $logout = umc_datetime($D['lastlogout']);
             $seconds = umc_timer_raw_diff($login, $logout);
-
+            if ($seconds > 86400) {
+                // small sanity check, people cannot be longer online than 24 hours
+                XMPP_ERROR_send_msg("$username ($type) last login: {$D['lastlogin']}, Last logout: {$D['lastlogout']}, diff is $seconds");
+                return;
+            }
             $online_sql = "UPDATE minecraft_srvr.UUID SET onlinetime=onlinetime+$seconds WHERE UUID='$uuid';";
             umc_mysql_query($online_sql);
         } else {
@@ -68,7 +72,15 @@ function umc_uuid_login_logout_update($type) {
     umc_mysql_query($sql);
 }
 
+/**
+ * creates a UUID table entry if it does not exist, otherwise fetches the data from the table
+ *
+ * @param type $uuid
+ * @param type $username
+ * @return type
+ */
 function umc_uuid_userdata($uuid, $username) {
+    global $UMC_USERS;
     $sql_time = "SELECT * FROM minecraft_srvr.UUID WHERE UUID='$uuid';";
     $data = umc_mysql_fetch_all($sql_time);
     if (count($data) == 0) {
@@ -77,6 +89,7 @@ function umc_uuid_userdata($uuid, $username) {
         umc_uuid_firstlogin_update($uuid);
         // we cal lthis function again to get the data output;
         umc_uuid_userdata($uuid, $username);
+        $UMC_USERS[$uuid] = $username;
     } else {
         return $data[0];
     }
@@ -103,12 +116,17 @@ function umc_uuid_firstlogin_update($uuid) {
  */
 function umc_uuid_record_lotcount($user = false) {
     XMPP_ERROR_trace(__FUNCTION__, func_get_args());
+
+    // delete all lot counts so that we can re-write the new ones
+
     if ($user) {
         $uuid = umc_uuid_getone($user, 'uuid');
         $lots = umc_user_countlots($uuid);
         $sql = "UPDATE minecraft_srvr.UUID SET lot_count=$lots WHERE UUID='$uuid';";
         umc_mysql_query($sql);
     } else {
+        $sql = "UPDATE minecraft_srvr.UUID SET lot_count=0";
+        umc_mysql_execute_query($sql);
         // get all lot counts
         $data = umc_get_active_members('counter');
         foreach ($data as $uuid => $counter) {
@@ -230,7 +248,7 @@ function umc_uuid_getone($query, $format = 'uuid', $existing_only = false) {
  */
 function umc_user2uuid($query, $existing_only = false) {
     // get a username
-    global $UMC_USER;
+    global $UMC_USER, $UMC_USERS;
     XMPP_ERROR_trace(__FUNCTION__, func_get_args());
 
     if (strlen($query) < 2) {
@@ -245,17 +263,25 @@ function umc_user2uuid($query, $existing_only = false) {
         return $UMC_USER['username'];
     }
 
+    // check in the $UMC_USERS array
+    if (isset($UMC_USERS[$query])) {
+        return $UMC_USERS[$query]; // return username
+    } else if (in_array($query, $UMC_USERS)) {
+        $uuid = array_search($query, $UMC_USERS);
+        return $uuid;
+    }
+
     if ($existing_only) {
         $checks = array(
             'umc_uuid_get_system_users',
-            'umc_uuid_get_from_wordpress',
             'umc_uuid_get_from_uuid_table',
+            'umc_uuid_get_from_wordpress',
         );
     } else {
         $checks = array(
             'umc_uuid_get_system_users',
-            'umc_uuid_get_from_wordpress',
             'umc_uuid_get_from_uuid_table',
+            'umc_uuid_get_from_wordpress',
             'umc_uuid_get_from_logfile',
             'umc_uuid_get_from_mojang'
         );
@@ -269,6 +295,13 @@ function umc_user2uuid($query, $existing_only = false) {
         }
     }
     if ($result) {
+        // add result to $UMC_USERS
+        if (strlen($query) > 17) {
+            $UMC_USERS[$query] = $result;
+        } else {
+            $UMC_USERS[$result] = $query;
+        }
+
         return $result;
     } else {
         // umc_error_longmsg("Could not find UUID/Username for $query");
@@ -459,21 +492,23 @@ function umc_uuid_get_from_mojang($username, $timer = false) {
         }
 
         if ($timer) {
-            $data_arr = array($username, 141321800);
+            $query_string = "$username?at=$timer";
         } else {
-            $data_arr = array($username);
+            $query_string = $username;
         }
 
-        $opts = array('http' =>
-            array(
-                'method' => 'POST',
-                'header' => 'Content-type: application/json',
-                'content' => json_encode($data_arr),
-            ),
-        );
+        $url = 'https://api.mojang.com/users/profiles/minecraft/' . $query_string;
+        XMPP_ERROR_trace("Username fetch URL: ", $url);
 
-        $context = stream_context_create($opts);
-        $json_result = file_get_contents('https://api.mojang.com/profiles/minecraft', false, $context);
+        $R = unc_serial_curl($url, 0, 50, '/home/includes/unc_serial_curl/google.crt');
+        $json_result = $R[0]['content'];
+
+        XMPP_ERROR_trace("Json result: ", $json_result);
+
+        if (!$json_result) {
+            XMPP_ERROR_trigger("Could not verify username ('$username') with Mojang");
+            return false;
+        }
         $json_data = json_decode($json_result, true);
         if (isset($json_result['error']) && $json_result['error'] == 'TooManyRequestsException') {
             XMPP_ERROR_trigger("could not get UUID for $username from Mojang: " . var_export($json_result, true));
@@ -485,7 +520,9 @@ function umc_uuid_get_from_mojang($username, $timer = false) {
             XMPP_ERROR_trigger("Could not find username for $username at Mojang ($text)");
             return false;
         }
-        return umc_uuid_format($json_data[0]["id"]); // add "-" dashes if needed
+
+        $formatted = umc_uuid_format($json_data["id"]); // add "-" dashes if needed
+        return  $formatted;
     } else {
         $uuid = $username;
         $json_data = umc_uuid_mojang_usernames($uuid);
@@ -531,7 +568,10 @@ function umc_uuid_mojang_usernames($uuid) {
     $uuid_raw = str_replace("-", "", $uuid);
     // https://api.mojang.com/user/profiles/a0130adc42ad4e619da2f90a5bc310d3/names
     $url = "https://api.mojang.com/user/profiles/$uuid_raw/names";
-    $json_result = file_get_contents($url, false);
+
+    $R = unc_serial_curl($url, 0, 50, '/home/includes/unc_serial_curl/google.crt');
+    $json_result = $R[0]['content'];
+
     $data_array = json_decode($json_result, true);
     if (count($data_array) == 0) {
         $text = var_export($data_array, true);

@@ -20,10 +20,14 @@
 /**
  * This file handles all user-level related events and functions.
  *
- * TODO: have one donator level only
+ * TODO: Move donator level to separate permission
+ *
  * Process:
- * We downgrade all simple donators
- * Then we re-balance all the
+ *
+ * make sure that the processes checking permissions don't confuse donator levels as normal levels 
+ * Give everyone a separate donator level
+ *
+ *
  */
 
 global $UMC_SETTING, $WS_INIT;
@@ -32,7 +36,6 @@ $WS_INIT['userlevel'] = array(  // the name of the plugin
     'disabled' => false,
     'events' => array(
         'PlayerJoinEvent' => 'umc_userlevel_player_check',
-        'server_pre_reboot' => 'umc_userlevel_donation_update_all',
     ),
     'default' => array(
         'help' => array(
@@ -68,17 +71,16 @@ function umc_userlevel_player_check() {
     $uuid = $UMC_USER['uuid'];
 
     umc_userlevel_citizen_update($uuid);
-    umc_userlevel_donator_update($uuid);
 }
 
 /**
- * Get the userlevel of a user
+ * Get the userlevel of a user, NOT multi-level-safe
  *
  * @global type $UMC_USER
  * @param type $uuid
  * @return boolean|string
  */
-function umc_userlevel_get($uuid) {
+function umc_userlevel_get_old($uuid) {
     XMPP_ERROR_trace(__FUNCTION__, func_get_args());
     global $UMC_USER;
     // did we query a username instead of a uuid?
@@ -118,8 +120,128 @@ function umc_userlevel_get($uuid) {
 }
 
 /**
+ * Retrieve the userlevel from a uuid, returns only levels from the set Array in $UMC_SETTING['ranks']
+ * Can accept an array of UUIDs and will then return an assoc array.
+ *
+ * @global type $UMC_USER
+ * @param type $uuid
+ * @param type $forcecheck
+ * @return string
+ */
+function umc_userlevel_get($uuid, $forcecheck = false) {
+    global $UMC_USER, $UMC_SETTING;
+    XMPP_ERROR_trace(__FUNCTION__, func_get_args());
+
+    // check if the userlevel is already set (only if the user is the current
+    if (!$forcecheck && $uuid == $UMC_USER['uuid'] && isset($UMC_USER['userlevel'])) {
+        return $UMC_USER['userlevel'];
+    }
+
+    if (!is_array($uuid) && (strtolower($uuid) == '@console')) {
+        return "Owner";
+    }
+    if (strlen($uuid) < 35) {
+        XMPP_ERROR_trigger("umc_userlevel_get: Tried to get uuid-level of invalid UUID: $uuid");
+    }
+
+    if (is_array($uuid)) {
+        $uuid_str = implode("','", $uuid);
+        $count = count($uuid);
+    } else {
+        $uuid_str = $uuid;
+        $count = 1;
+    }
+    //SELECT * FROM `permissions_inheritance` WHERE `child` LIKE 'a1b763b9-bd7d-4914-8b4b-8c20bddb5882' ORDER BY `child` DESC
+
+    $valid_levels_str = implode("','", $UMC_SETTING['ranks']);
+
+    $sql = "SELECT parent AS userlevel, value AS username, name AS uuid FROM minecraft_srvr.permissions
+        LEFT JOIN minecraft_srvr.`permissions_inheritance` ON name=child
+        WHERE permissions.permission='name' AND `name` IN ('$uuid_str') AND parent IN ('$valid_levels_str') ";
+    $D = umc_mysql_fetch_all($sql);
+    $uuid_levels = array();
+    // user not found, so he's guest
+    if (count($D) == 0)  {
+        return "Guest";
+    }
+    //parent 	value 	name
+    // Owner 	uncovery	ab3bc877-4434-45a9-93bd-bab6df41eabf
+
+    // otherwise get results
+    foreach ($D as $row) {
+        $uuid = $row['uuid'];
+        $level = $row['userlevel'];
+        // for now, ignore the Donor level
+        if (!in_array($level, $UMC_SETTING['ranks'])) {
+            continue;
+        }
+        if ($level == 'NULL') {
+            $level = 'Guest';
+        }
+        $uuid_levels[$uuid] = $level;
+    }
+    // check if all users were found, if not, set them as guest
+    if (is_array($uuid)) {
+        foreach ($uuid as $user) {
+            if (!isset($uuid_levels[$user])) {
+                $uuid_levels[$user] = 'Guest';
+            }
+        }
+        return $uuid_levels;
+    } else {
+        if (!isset($uuid_levels[$uuid_str])) {
+            // umc_error_msg("Could not determine userlevel for UUID $uuid");
+            return "Guest";
+        }
+        return $uuid_levels[$uuid_str]; // returns only ONE level
+    }
+}
+
+
+/**
  * promotes a user to Citizen if applicable
- * whenever we write the onlinetime for a user, we should check if this applies
+ *
+ * @param type $uuid
+ * @param type $userlevel
+ * @return type
+ */
+function umc_promote_citizen($uuid, $userlevel = false) {
+    XMPP_ERROR_trace(__FUNCTION__, func_get_args());
+    if (!$userlevel) {
+        $userlevel = umc_userlevel_get($uuid);
+    }
+    $settlers = array('Settler', 'SettlerDonator');
+    if (in_array($userlevel, $settlers)) {
+        /*
+        $age = umc_get_lot_owner_age('array', $lower_login);
+        if (!$age) {
+            return;
+        }
+        $age_days = $age[$lower_login]['firstlogin']['days'];
+        if ($age_days >= 90) {
+        *
+        */
+        $online_hours = umc_get_online_hours($uuid);
+        if ($online_hours >= 60) {
+            //user should be Citizen
+            if ($userlevel == 'Settler') {
+                // pex user <user> group set <group>
+                umc_exec_command("pex user $uuid group set Citizen");
+                umc_log("users", "promotion", "User $uuid was promoted from $userlevel to Citizen (online hours: $online_hours)");
+            } else if ($userlevel == 'SettlerDonator') {
+                umc_exec_command("pex user $uuid group set CitizenDonator");
+                umc_log("users", "promotion", "User $uuid was promoted from $userlevel to CitizenDonator (online: $online_hours)");
+            } else {
+                XMPP_ERROR_trigger("$uuid has level $userlevel and could not be promoted to Citizen! Please report to admin!");
+            }
+        }
+    }
+}
+
+
+/**
+ * promotes a user to Citizen if applicable
+ * TODO whenever we write the onlinetime for a user, we should check if this applies
  *
  * @param string $uuid
  * @param string $userlevel
@@ -127,7 +249,7 @@ function umc_userlevel_get($uuid) {
 function umc_userlevel_citizen_update($uuid, $userlevel = false) {
     XMPP_ERROR_trace(__FUNCTION__, func_get_args());
     if (!$userlevel) {
-        $userlevel = umc_userlevel_get($uuid);
+        $userlevel = umc_userlevel_get_old($uuid);
     }
     if (strpos($userlevel, 'Settler')) {
         $online_hours = umc_get_online_hours($uuid);
@@ -149,7 +271,7 @@ function umc_userlevel_promote_onelevel($uuid) {
     global $UMC_SETTING;
 
     // first, we get the current userlevel and it's base
-    $userlevels = umc_userlevel_get($uuid);
+    $userlevels = umc_userlevel_get_old($uuid);
     $userlevel = $userlevels[$uuid];
     $base_level_arr = umc_userlevel_get_base($userlevel);
     $user_base_level_id = $base_level_arr['level_id'];
@@ -170,20 +292,13 @@ function umc_userlevel_promote_onelevel($uuid) {
  * assign a new userlevel to a user
  *
  * @param type $uuid
- * @param type $newlevel
+ * @param type $newlevel_raw
  */
-function umc_userlevel_assign_level($uuid, $newlevel) {
-    global $UMC_SETTING;
+function umc_userlevel_assign_level($uuid, $newlevel_raw) {
     XMPP_ERROR_trace(__FUNCTION__, func_get_args());
 
-    // check if level is valid
-    if (!in_array($newlevel, $UMC_SETTING['ranks'])) {
-        XMPP_ERROR_trigger("Tried to set invalid userlevel $newlevel for user $uuid!");
-        return;
-    }
-    
     //always make sure first letter of groupname is capitalised
-    $newlevel = ucfirst($newlevel);
+    $newlevel = ucfirst($newlevel_raw);
 
     // upgrade on the server
     $check = umc_exec_command("pex user $uuid group set $newlevel");
@@ -200,8 +315,35 @@ function umc_userlevel_assign_level($uuid, $newlevel) {
 }
 
 /**
+ * remove a level from a user
+ *
+ * @param type $uuid
+ * @param type $level_raw
+ */
+function umc_userlevel_remove_level($uuid, $level_raw) {
+    XMPP_ERROR_trace(__FUNCTION__, func_get_args());
+
+    //always make sure first letter of groupname is capitalised
+    $level = ucfirst($level_raw);
+
+    // upgrade on the server
+    $check = umc_exec_command("pex user $uuid group remove $level");
+    // if the server was not online, we need to do it in the database directly.
+    if (!$check) {
+        $uuid_sql = umc_mysql_real_escape_string($uuid);
+        $level_sql = umc_mysql_real_escape_string($level);
+        $sql = "DELETE FROM minecraft_srvr.permissions_inheritance WHERE `parent`=$level_sql AND `child`=$uuid_sql";
+        umc_mysql_execute_query($sql);
+        // try at lease to reloaduserlvels
+        umc_exec_command("pex reload");
+    }
+    umc_log("users", "promotion", "User $uuid was removed from $level");
+}
+
+/**
  * returns the base level of a level (without donator status)
  * while we could do this with an array, this system does not break if we add new levels
+ * deprecated, still used in Donations to check if a user needs a userlevel change (umc_donation_update_user)
  *
  * @global array $UMC_SETTING
  * @param type $userlevel
@@ -220,114 +362,59 @@ function umc_userlevel_get_base($userlevel) {
     return false;
 }
 
-/**
- * go through all donators and make sure that they are downgraded if required
- */
-function umc_userlevel_donation_update_all() {
+/*
+This function checks the rank permissions for the plugin rights
+*/
+function umc_rank_check($player_rank, $required_rank) {
     XMPP_ERROR_trace(__FUNCTION__, func_get_args());
-    $sql = "SELECT sum(`amount`), donations.`uuid`, sum(amount - (DATEDIFF(NOW(), `date`) / 30)) as leftover
-        FROM minecraft_srvr.donations
-        LEFT JOIN minecraft_srvr.UUID ON UUID.uuid=donations.uuid
-        WHERE userlevel LIKE '%Donator%' AND amount - (DATEDIFF(NOW(), `date`) / 30) < 2 AND donations.uuid <> 'void'
-        GROUP BY uuid
-        ORDER BY `leftover` DESC";
-    $result = umc_mysql_fetch_all($sql);
-    foreach ($result as $D) {
-        umc_userlevel_donator_update($D['uuid']);
+    global $UMC_SETTING;
+    if ($player_rank == 'Owner') {
+        return true;
     }
+    foreach ($UMC_SETTING['ranks'] as $rank) {
+        if ($rank == $required_rank) { // We got to the required rank without finding the player's rank first, success!
+            return true;
+        }
+        if ($rank == $player_rank) { // We got to the players rank without finding the require rank first, failure.
+            return false;
+        }
+    } // We didn't find either rank yet, move on to the next one.
+    // we could not find the rank at all, fail and alert
+    XMPP_ERROR_trigger("Could not identify rank $player_rank / $required_rank (umc_rank_check)");
+    return false;
 }
 
-/**
- * update the donator status user depending on their past donations.
- *
- * @param type $uuid
- * @return boolean
- */
-function umc_userlevel_donator_update($uuid) {
-    XMPP_ERROR_trace(__FUNCTION__, func_get_args());
-    $is_donator = umc_userlevel_donation_remains($uuid);
-
-    $userlevel = umc_userlevel_get($uuid);
-    if ($userlevel == 'Owner') {
-        return false;
-    }
-
-    $base_level_arr = umc_userlevel_get_base($userlevel);
-    $base_level = $base_level_arr['level_name'];
-    if ($is_donator) {
-        if (strpos($userlevel, 'DonatorPlus')) { // all good
-            $new_level = $base_level . "Donator";
-            umc_userlevel_assign_level($uuid, $new_level);
-        } else if (strpos($userlevel, 'Donator')) { // all good
-            return;
-        } else {
-            $new_level = $userlevel . "Donator";
-            umc_userlevel_assign_level($uuid, $new_level);
-        }
-    } else { // not donator
-        if ($userlevel != $base_level) { // downgrade
-            umc_userlevel_assign_level($uuid, $base_level);
-        }
-    }
-}
 
 /**
- * calculate if the user has active donations or not
- *
- * @param type $uuid
- * @return boolean
+ * retrieve the last login date of active users and their userlevel
+ * TODO: This is only used for the map. can e split this in two functions?
+ * @return array
  */
-function umc_userlevel_donation_remains($uuid) {
+function umc_users_active_lastlogin_and_level() {
     XMPP_ERROR_trace(__FUNCTION__, func_get_args());
-    // we assume that they are not a donator
-
-    // today's date
-    $date_now = new DateTime("now");
-    // lets get all the donations
-    $sql_uuid = umc_mysql_real_escape_string($uuid);
-    $sql = "SELECT amount, date FROM minecraft_srvr.donations WHERE uuid=$sql_uuid;";
-    $D = umc_mysql_fetch_all($sql);
-    // no donations, not donator
-    if (count($D) == 0) {
-        return false;
-    }
-
-    // go through all donations and find out how much is still active
-    // the problem here is that if a user donated 2 USD twice 3 months ago
-    // he is still a donator. we have to be aware about overlapping donations
-    // that extend further into the future due to the overlap
-    $donation_level = 0;
+    $sql_1 = "SELECT user.uuid as uuid, lower(username) as username, lastlogin, userlevel
+        FROM minecraft_worldguard.region_players
+        LEFT JOIN minecraft_worldguard.user ON user_id=id
+        LEFT JOIN minecraft_srvr.UUID ON user.uuid=UUID.UUID
+        WHERE owner=1 AND user.uuid IS NOT NULL AND username is NOT NULL
+        GROUP BY username
+        ORDER BY username;";
+    // XMPP_ERROR_trace($sql);
+    $D = umc_mysql_fetch_all($sql_1);
+    $lastlogins = array('abandone-0000-0000-0000-000000000000' => array('username' => '_abandoned_', 'userlevel' => 'Guest', 'lastlogin' => '2010-01-01 00:00:00'));
     foreach ($D as $row) {
-        $date_donation = new DateTime($row['date']);
-        $interval = $date_donation->diff($date_now);
-        $years = $interval->format('%y'); // years since the donation
-        $months = $interval->format('%m');
-        $donation_term = ($years * 12) + $months;
-        $donation_leftover = $row['amount'] - $donation_term;
-        if ($donation_leftover < 0) {
-            $donation_leftover = 0; // do not create negative carryforward
-        }
-        $donation_level += $donation_leftover;
+        $lastlogins[$row['uuid']]['lastlogin'] = $row['lastlogin'];
+        $lastlogins[$row['uuid']]['username'] = $row['username'];
+        $lastlogins[$row['uuid']]['userlevel'] = $row['userlevel'];
+        // default Guest; if there is a level set, it will be updated in the next step
+        // $lastlogins[$row['name']]['userlevel'] = 'Guest';
     }
-    if ($donation_level > 0) {
-        return $donation_level;
-    } else {
-        return false;
-    }
-}
 
-/**
- * return an array of all current donators
- *
- * @return type
- */
-function umc_userlevel_donators_list() {
-    XMPP_ERROR_trace(__FUNCTION__, func_get_args());
-    $sql = "SELECT child as uuid FROM minecraft_srvr.permissions_inheritance WHERE parent LIKE '%Donator';";
-    $D = umc_mysql_fetch_all($sql);
-    $out_arr = array();
-    foreach($D as $row) {
-        $out_arr[] = $row['uuid'];
+    // chek for userlevel issues
+    foreach ($lastlogins as $uuid => $D) {
+        if (!isset($D['userlevel'])) {
+            XMPP_ERROR_trigger("User $uuid / {$D['username']} has a lot but no userlevel!!");
+        }
     }
-    return $out_arr;
+    return $lastlogins;
 }
